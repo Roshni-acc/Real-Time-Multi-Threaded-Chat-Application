@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Profile - Chat Application</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="profile-container">
+        <h2>Profile Settings</h2>
+        <form action="/update-profile" method="post">
+            <label>Username:</label>
+            <input type="text" name="username" value="current_username" disabled>
+            <label>Update Password:</label>
+            <input type="password" name="new_password" placeholder="New Password">
+            <button type="submit">Update</button>
+        </form>
+    </div>
+</body>
+</html>

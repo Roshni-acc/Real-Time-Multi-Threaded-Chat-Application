@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Chat Application</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+</head>
+<body>
+    <div class="chat-container">
+        <header>
+            <h2>Multi-threaded Chat App</h2>
+            <button id="theme-toggle">🌙 Dark Mode</button>
+        </header>
+
+        <div class="chat-box">
+            <ul id="messages"></ul>
+        </div>
+
+        <div class="input-area">
+            <input id="message" type="text" placeholder="Type a message..." />
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+ <script src="/static/script.js"></script>
+
+</body>
+</html>
