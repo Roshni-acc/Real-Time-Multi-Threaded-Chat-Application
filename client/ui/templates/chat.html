@@ -13,13 +13,44 @@
         </header>
 
         <div class="chat-box">
-            <ul id="messages"></ul>
+            {% for message in messages %}
+                <div style="margin-bottom: 15px;">
+                    <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                        <img src="/static/uploads/{{ message[3] or '2.jpg' }}" 
+                             alt="Profile Photo" 
+                             style="width: 40px; height: 40px; border-radius: 50%; margin-right: 10px;">
+                        <strong>{{ message[0] }}</strong> <!-- Sender's name -->
+                    </div>
+                    <div style="background: #f0f0f0; border-radius: 10px; padding: 10px; max-width: 70%; word-wrap: break-word;">
+                        <p>{{ message[1] }}</p> <!-- Message content -->
+                        <span style="font-size: small; color: gray;">{{ message[2] }}</span> <!-- Timestamp -->
+                    </div>
+                </div>
+            {% endfor %}
         </div>
+        
+        
+        
+        
 
         <div class="input-area">
             <input id="message" type="text" placeholder="Type a message..." />
             <button onclick="sendMessage()">Send</button>
         </div>
+
+        <ul>
+            {% for room in rooms %}
+                <li class="{% if room[0] == current_room_id %}active-room{% else %}inactive-room{% endif %}">
+                    <a href="/join_room/{{ room[0] }}">
+                        {{ room[1] }} <!-- Room Name -->
+                    </a>
+                </li>
+            {% endfor %}
+        </ul>
+        
+        
+
+        
     </div>
 
  <script src="/static/script.js"></script>

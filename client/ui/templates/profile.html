@@ -1,19 +1,39 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Profile - Chat Application</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <title>Profile</title>
+    <link rel="stylesheet" href="/static/styles-dark.css">
 </head>
 <body>
     <div class="profile-container">
-        <h2>Profile Settings</h2>
-        <form action="/update-profile" method="post">
-            <label>Username:</label>
-            <input type="text" name="username" value="current_username" disabled>
-            <label>Update Password:</label>
-            <input type="password" name="new_password" placeholder="New Password">
-            <button type="submit">Update</button>
+        <h2>Welcome, {{ username }}</h2>
+
+        <!-- Profile Photo Display -->
+        <div class="profile-photo-section">
+            <h3>Your Profile Photo:</h3>
+            <img src="/static/uploads/{{ profile_photo or '2.jpg' }}" 
+                 alt="Profile Photo" 
+                 style="width: 150px; height: 150px; border-radius: 50%; object-fit: cover;">
+        </div>
+        
+
+        <!-- Profile Photo Upload Form -->
+        <form action="/upload_dp" method="POST" enctype="multipart/form-data">
+            <label for="profile-photo">Change Profile Photo:</label>
+            <input type="file" name="profile_photo" id="profile-photo" required>
+            <button type="submit">Upload</button>
         </form>
+
+        <!-- Navigation Options -->
+        <div class="navigation" style="margin-top: 20px;">
+            <a href="/chat" style="margin-right: 15px;">Start Chatting</a>
+            <a href="/create_room">Create Rooms</a>
+        </div>
+
+        <div style="margin-top: 20px; text-align: center;">
+            <a href="/logout" style="color: #ff758c; text-decoration: none;">Logout</a>
+        </div>
+        
     </div>
 </body>
 </html>

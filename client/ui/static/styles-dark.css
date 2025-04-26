@@ -1,0 +1,124 @@
+/* General Layout */
+body {
+    background-color: #1c1c1c; /* Deep dark background */
+    color: #e0e0e0; /* Soft white text */
+    font-family: "Poppins", sans-serif;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+/* Containers for Forms and Profiles */
+.container {
+    width: 650px;
+    background-color: #2c2c2c; /* Slightly lighter dark background for form containers */
+    border-radius: 15px;
+    padding: 20px;
+    box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.6); /* Subtle shadow */
+}
+
+h2 {
+    text-align: center;
+    color: #f5f5f5; /* Bright white headings */
+}
+
+form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px; /* Spacing between form elements */
+    margin: 10px auto;
+}
+
+input {
+    background-color: #333333; /* Dark input fields */
+    color: #e0e0e0; /* Light text for inputs */
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 14px;
+    outline: none;
+}
+
+input::placeholder {
+    color: #a0a0a0; /* Placeholder color */
+}
+
+button {
+    background-color: #ff758c; /* Bright accent color */
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s ease;
+}
+
+button:hover {
+    background-color: #ff5670; /* Slightly darker hover effect */
+}
+
+/* Profile Page Styling */
+.profile-container {
+    width: 500px;
+    background-color: #292929; /* Dark background for profile containers */
+    border-radius: 15px;
+    padding: 20px;
+    box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.7);
+}
+
+ul {
+    list-style: none;
+    padding: 0;
+    margin-top: 15px;
+}
+
+ul li {
+    background-color: #333333; /* Dark background for list items */
+    color: #f0f0f0; /* Text color for list items */
+    padding: 10px;
+    border-radius: 8px;
+    margin: 8px 0;
+}
+
+/* Admin Dashboard */
+.admin-container {
+    width: 600px;
+    background-color: #2c2c2c; /* Same container styling for admin dashboard */
+    border-radius: 15px;
+    padding: 20px;
+    box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.7);
+}
+
+.admin-features {
+    list-style: none;
+    padding: 0;
+    margin-top: 10px;
+}
+
+.admin-features li {
+    background-color: #333333;
+    color: #ffffff;
+    padding: 10px;
+    border-radius: 8px;
+    margin: 8px 0;
+}
+
+.admin-features li:hover {
+    background-color: #444444;
+    cursor: pointer;
+}
+
+/* Links */
+a {
+    text-decoration: none;
+    color: #ff758c; /* Bright accent for links */
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    color: #ff5670; /* Hover effect for links */
+}
