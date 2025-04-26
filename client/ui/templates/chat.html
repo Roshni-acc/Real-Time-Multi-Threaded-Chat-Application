@@ -7,53 +7,81 @@
 </head>
 <body>
     <div class="chat-container">
+        <!-- Header Section -->
         <header>
             <h2>Multi-threaded Chat App</h2>
             <button id="theme-toggle">🌙 Dark Mode</button>
+
+            <div>
+                <h2>Room: {{ current_room_id }}</h2>
+                <button onclick="window.location.href='profile'">Update Profile</button>
+                <button onclick="window.location.href='/logout'">Logout</button>
+                <button id="create-room" onclick="window.location.href='create_room'">Create Room</button>
+            </div>
         </header>
 
+        <!-- Chat Messages Section -->
         <div class="chat-box">
             {% for message in messages %}
                 <div style="margin-bottom: 15px;">
+                    <!-- Profile and Username -->
                     <div style="display: flex; align-items: center; margin-bottom: 5px;">
                         <img src="/static/uploads/{{ message[3] or '2.jpg' }}" 
                              alt="Profile Photo" 
                              style="width: 40px; height: 40px; border-radius: 50%; margin-right: 10px;">
-                        <strong>{{ message[0] }}</strong> <!-- Sender's name -->
+                        <strong>{{ message[0] }}</strong> <!-- Sender's Name -->
                     </div>
+                    <!-- Message Content -->
                     <div style="background: #f0f0f0; border-radius: 10px; padding: 10px; max-width: 70%; word-wrap: break-word;">
-                        <p>{{ message[1] }}</p> <!-- Message content -->
+                        <p>{{ message[1] }}</p> <!-- Message Content -->
                         <span style="font-size: small; color: gray;">{{ message[2] }}</span> <!-- Timestamp -->
                     </div>
                 </div>
             {% endfor %}
         </div>
-        
-        
-        
-        
 
+        <!-- Input Section -->
         <div class="input-area">
             <input id="message" type="text" placeholder="Type a message..." />
             <button onclick="sendMessage()">Send</button>
         </div>
 
-        <ul>
+        <!-- Room List Section -->
+        <!-- <ul>
             {% for room in rooms %}
                 <li class="{% if room[0] == current_room_id %}active-room{% else %}inactive-room{% endif %}">
                     <a href="/join_room/{{ room[0] }}">
+                        {{ room[1] }} <--Room Name -->
+                    <!-- </a> -->
+                <!-- </li> -->
+            <!-- {% endfor %} -->
+        <!-- </ul>  -->
+        <ul>
+            {% for room in rooms %}
+                <li class="{% if room[0] == current_room_id %}active-room{% else %}inactive-room{% endif %}">
+                    <a href="{% if session.logged_in %}/join_room/{{ room[0] }}{% else %}/login{% endif %}">
                         {{ room[1] }} <!-- Room Name -->
                     </a>
                 </li>
             {% endfor %}
         </ul>
         
-        
 
-        
+        <!-- Profile Update Modal -->
+        <div id="profile-modal" class="modal">
+            <form id="profile-form">
+                <label for="username">Username:</label>
+                <input type="text" id="username" required />
+
+                <label for="dp">Profile Picture URL:</label>
+                <input type="url" id="dp" />
+
+                <button type="submit">Save</button>
+            </form>
+        </div>
     </div>
 
- <script src="/static/script.js"></script>
-
+    <!-- JavaScript -->
+    <script src="/static/script.js"></script>
 </body>
 </html>
