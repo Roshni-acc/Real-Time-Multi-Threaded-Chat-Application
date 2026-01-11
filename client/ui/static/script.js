@@ -198,7 +198,9 @@ document.addEventListener("DOMContentLoaded", () => {
         joinCode: document.getElementById("join-code-form"),
         createRoom: document.getElementById("create-room-form"),
         upload: document.getElementById("upload-form"),
-        profileDetails: document.getElementById("profile-details-form")
+        profileDetails: document.getElementById("profile-details-form"),
+        forgotPassword: document.getElementById("forgot-password-form"),
+        resetPassword: document.getElementById("reset-password-form")
     };
 
     const confirmDeleteBtn = document.getElementById("confirm-delete-btn");
@@ -301,6 +303,8 @@ document.addEventListener("DOMContentLoaded", () => {
     handleForm(forms.createRoom, "/chat");
     handleForm(forms.upload);
     handleForm(forms.profileDetails);
+    handleForm(forms.forgotPassword);
+    handleForm(forms.resetPassword);
 
     // Theme Toggle
     const themeToggle = document.getElementById("theme-toggle");

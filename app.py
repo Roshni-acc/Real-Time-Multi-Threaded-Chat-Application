@@ -7,15 +7,31 @@ from server.database import (
     register_user, login_user, save_message, get_chat_history, 
     create_room, get_rooms, get_room_by_code, update_profile_photo,
     add_user_to_room, update_user_details, update_room_name,
-    promote_to_admin, remove_user_from_room
+    promote_to_admin, remove_user_from_room, update_user_password
 )
-from server.config import SECRET_KEY
+from server.config import (
+    SECRET_KEY, MAIL_SERVER, MAIL_PORT, MAIL_USE_TLS, 
+    MAIL_USERNAME, MAIL_PASSWORD, MAIL_DEFAULT_SENDER
+)
+from flask_mail import Mail, Message
+from itsdangerous import URLSafeTimedSerializer
 
 # Flask app configuration
 app = Flask(__name__, template_folder="client/ui/templates", static_folder="client/ui/static")
 app.config['SECRET_KEY'] = SECRET_KEY
 UPLOAD_FOLDER = 'client/ui/static/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Email Configuration
+app.config['MAIL_SERVER'] = MAIL_SERVER
+app.config['MAIL_PORT'] = MAIL_PORT
+app.config['MAIL_USE_TLS'] = MAIL_USE_TLS
+app.config['MAIL_USERNAME'] = MAIL_USERNAME
+app.config['MAIL_PASSWORD'] = MAIL_PASSWORD
+app.config['MAIL_DEFAULT_SENDER'] = MAIL_DEFAULT_SENDER
+
+mail = Mail(app)
+serializer = URLSafeTimedSerializer(SECRET_KEY)
 socketio = SocketIO(app)
 
 @app.template_filter('to_ist')
@@ -381,6 +397,55 @@ def kick_member_route(room_id, member_username):
 def logout():
     session.clear()
     return redirect(url_for('login'))
+
+@app.route('/forgot_password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        from server.database import get_db
+        db = get_db()
+        user = db.users.find_one({"email": email})
+        
+        if user:
+            token = serializer.dumps(email, salt='password-reset-salt')
+            reset_url = url_for('reset_password', token=token, _external=True)
+            
+            msg = Message('Password Reset Request', recipients=[email])
+            msg.body = f"Hello,\n\nYou requested a password reset. Please click the link below to reset your password (valid for 1 hour):\n\n{reset_url}\n\nIf you did not make this request, simply ignore this email."
+            try:
+                mail.send(msg)
+                return api_response(True, "A reset link has been sent to your email! Please check your inbox.")
+            except Exception as e:
+                print(f"Mail delivery error: {e}")
+                return api_response(False, "Failed to send reset email. Please check your SMTP settings in .env."), 500
+        else:
+            return api_response(False, "We couldn't find an account with that email address."), 404
+            
+    return render_template('forgot_password.html')
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    try:
+        # Link expires in 3600 seconds (1 hour)
+        email = serializer.loads(token, salt='password-reset-salt', max_age=3600)
+    except:
+        return "The reset link is invalid or has expired.", 400
+
+    if request.method == 'POST':
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        if not password or len(password) < 6:
+            return api_response(False, "Password must be at least 6 characters."), 400
+        if password != confirm_password:
+            return api_response(False, "Passwords do not match."), 400
+            
+        hashed_password = generate_password_hash(password)
+        update_user_password(email, hashed_password)
+        
+        return api_response(True, "Your password has been reset successfully!", {"redirect": url_for('login')})
+
+    return render_template('reset_password.html', token=token)
 
 @app.route('/profile', methods=['GET', 'POST'])
 def profile():

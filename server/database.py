@@ -165,3 +165,11 @@ def update_profile_photo(username, filename):
         {"username": username},
         {"$set": {"profile_photo": filename}}
     )
+
+# Function to update user password
+def update_user_password(email, new_password_hash):
+    db = get_db()
+    return db.users.update_one(
+        {"email": email},
+        {"$set": {"password_hash": new_password_hash}}
+    )
