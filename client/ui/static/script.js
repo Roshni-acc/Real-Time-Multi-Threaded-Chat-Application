@@ -1,399 +1,314 @@
-// // var socket = io.connect('http://127.0.0.1:5001');
-// // socket.on('message', function(data) {
-// //     const chatBox = document.getElementById('chat-box');
-// //     const messageBubble = document.createElement('div');
-// //     messageBubble.className = 'message-bubble other'; // Adjust as needed
-// //     messageBubble.innerText = `${data.sender}: ${data.message}`;
-// //     chatBox.appendChild(messageBubble);
-// // });
+// Initialize Socket.IO only if 'io' is defined (e.g., on the chat page)
+let socket;
+if (typeof io !== 'undefined') {
+    socket = io();
+    const activeRoomId = document.querySelector('.main-chat')?.getAttribute('data-room-id');
+    if (activeRoomId && activeRoomId.length > 5) {
+        socket.emit("join", { room: activeRoomId });
+    }
+}
 
+// Member Management
+async function promoteMember(roomId, memberUsername) {
+    if (!confirm(`Make ${memberUsername} an admin?`)) return;
+    try {
+        const response = await fetch(`/promote_member/${roomId}/${memberUsername}`);
+        const result = await response.json();
+        if (result.status) {
+            showToast(result.message);
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showToast(result.message, "error");
+        }
+    } catch (err) {
+        showToast("Error promoting member", "error");
+    }
+}
 
-// // // Handle incoming messages
-// // socket.on('message', function(data) {
-// //     var messageContainer = document.getElementById("messages");
-// //     var li = document.createElement("li");
-// //     li.className = "message-bubble";
-// //     li.innerText = data;
-// //     messageContainer.appendChild(li);
-// // });
+async function kickMember(roomId, memberUsername) {
+    if (!confirm(`Remove ${memberUsername} from the room?`)) return;
+    try {
+        const response = await fetch(`/kick_member/${roomId}/${memberUsername}`);
+        const result = await response.json();
+        if (result.status) {
+            showToast(result.message);
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showToast(result.message, "error");
+        }
+    } catch (err) {
+        showToast("Error removing member", "error");
+    }
+}
 
-// // // Send messages
-// // function sendMessage() {
-// //     var msg = document.getElementById("message").value;
-// //     if (msg.trim() !== "") {
-// //         socket.emit('message', msg);
-// //         document.getElementById("message").value = "";
-// //     }
-// // }
+// Room Renaming
+function toggleRoomRename() {
+    const display = document.getElementById("room-name-display");
+    const container = document.getElementById("room-rename-input-container");
+    const editBtn = document.querySelector(".edit-room-name-btn");
 
-// // // Dark Mode Toggle
-// // // document.getElementById("theme-toggle").addEventListener("click", function() {
-// // //     document.body.classList.toggle("dark-mode");
-// // // });
+    if (display.style.display === "none") {
+        display.style.display = "block";
+        container.style.display = "none";
+        if (editBtn) editBtn.style.display = "block";
+    } else {
+        display.style.display = "none";
+        container.style.display = "flex";
+        if (editBtn) editBtn.style.display = "none";
+    }
+}
 
+async function saveRoomName(roomId) {
+    const newName = document.getElementById("new-room-name").value.trim();
+    if (!newName) return showToast("Room name cannot be empty", "error");
 
-// // // document.getElementById("theme-toggle").addEventListener("click", () => {
-// // //     console.log("Dark mode toggle clicked!");
-// // //     document.body.classList.toggle("dark-mode");
-// // // });
+    try {
+        const formData = new FormData();
+        formData.append("room_name", newName);
 
+        const response = await fetch(`/update_room_name/${roomId}`, {
+            method: "POST",
+            body: formData
+        });
+        const result = await response.json();
+        if (result.status) {
+            showToast("Room renamed!");
+            document.getElementById("room-name-display").textContent = newName;
+            toggleRoomRename();
+        } else {
+            showToast(result.message, "error");
+        }
+    } catch (err) {
+        showToast("Error renaming room", "error");
+    }
+}
 
-// // const themeToggleButton = document.getElementById("theme-toggle");
+// Room Deletion
+let roomToDelete = null;
 
-// // // Set initial state
-// // let isDarkMode = false;
+function deleteRoom(roomId) {
+    roomToDelete = roomId;
+    const modal = document.getElementById("delete-modal");
+    if (modal) modal.classList.add("show");
+}
 
-// // themeToggleButton.addEventListener("click", () => {
-// //     isDarkMode = !isDarkMode; // Toggle the mode
-// //     document.body.classList.toggle("dark-mode", isDarkMode);
+function closeDeleteModal() {
+    const modal = document.getElementById("delete-modal");
+    if (modal) modal.classList.remove("show");
+    roomToDelete = null;
+}
 
-// //     // Update button text dynamically
-// //     themeToggleButton.textContent = isDarkMode ? "☀️ Light Mode" : "🌙 Dark Mode";
-// // });
-
-
-
-// // Establish WebSocket connection
-// const socket = io();
-
-// // join the room 
-// const room = "{{ room_id }}";
-// const username = sessionStorage.getItem("username");
-// const dp = sessionStorage.getItem("dp") || "ui//static/uploads/2.jpg";
-// socket.emit("join", { username: username, room: room });
-
-
-// // send message 
-// // Send message
-// function sendMessage() {
-//     const messageInput = document.getElementById("message");
-//     const message = messageInput.value.trim();
-
-//     if (message) {
-//         socket.emit("message", {
-//             username: username,
-//             dp: dp,
-//             room: room,
-//             message: message
-//         });
-//         messageInput.value = ""; // Clear input
-//     }
-// }
-
-// // Receive messages
-// socket.on("message", function (data) {
-
-//     if (data && data.username && data.dp && data.message) {
-//     const chatBox = document.querySelector(".chat-box");
-//     const messageDiv = document.createElement("div");
-//     messageDiv.classList.add("message");
-
-//     messageDiv.innerHTML = `
-//         <div class="profile">
-//             <img src="${data.dp}" alt="2.jpg" class="profile-pic">
-//             <strong>${data.username}</strong>
-//         </div>
-//         <p>${data.message}</p>
-//     `;
-//     chatBox.appendChild(messageDiv);
-//     chatBox.scrollTop = chatBox.scrollHeight; // Scroll to bottom
-//     }
-//     else{
-//         console.error("Invalid message data received:", data);  
-//     }
-// });
-
-// document.getElementById("create-room").addEventListener("click", function () {
-//     const roomName = prompt("Enter Room Name:");
-//     if (roomName) {
-//         fetch('/create_room', {
-//             method: 'POST',
-//             headers: { 'Content-Type': 'application/json' },
-//             body: JSON.stringify({ room_name: roomName })
-//         }).then(response => response.json())
-//           .then(data => {
-//               if (data.success) {
-//                   window.location.href = `/join_room/${data.room_id}`;
-//               }
-//           });
-//     }
-// });
-
-
-// document.getElementById("logout").addEventListener("click", function () {
-//     fetch('/logout', { method: 'POST', credentials: 'include' })
-//         .then(response => {
-//             if (response.ok) {
-//                 window.location.href = '/'; // Redirect to the home page
-//             }
-//         })
-//         .catch(error => console.error("Logout failed:", error));
-// });
-
-
-// // Logout functionality
-// document.getElementById("logout").addEventListener("click", function () {
-//     sessionStorage.clear();
-//     window.location.href = "/";
-// });
-
-
-// document.getElementById("update-profile").addEventListener("click", function () {
-//     const modal = document.getElementById("profile-modal");
-//     modal.style.display = "block"; // Show modal
-// });
-
-// document.getElementById("profile-form").addEventListener("submit", function (e) {
-//     e.preventDefault();
-//     const usernameInput = document.getElementById("username");
-//     const dpInput = document.getElementById("dp");
-
-//     sessionStorage.setItem("username", usernameInput.value);
-//     sessionStorage.setItem("dp", dpInput.value);
-//     alert("Profile updated!");
-//     document.getElementById("profile-modal").style.display = "none"; // Hide modal
-// });
-
-
-// // previous one startd from here 
-
-// // Join a specific room
-// function joinRoom(roomId) {
-//     socket.emit('join_room', { room_id: roomId }); // Send the room ID to the server
-//     console.log(`Joined room: ${roomId}`);
-// }
-
-// // Send a message
-// function sendMessage() {
-//     const messageInput = document.getElementById('message-input'); // Get the input box
-//     const message = messageInput.value.trim(); // Get the entered message and remove whitespace
-
-//     // Validate the input to prevent errors
-//     if (!message) {
-//         console.error("Message cannot be empty!");
-//         return;
-//     }
-
-//     // Current room ID stored in a hidden input
-//     const roomId = document.getElementById('current-room-id').value;
-
-//     // Ensure room ID exists
-//     if (!roomId) {
-//         console.error("Room ID is missing!");
-//         return;
-//     }
-
-//     // Emit the message to the server
-//     socket.emit('message', {
-//         room_id: roomId, // Room ID
-//         message: message // Message content
-//     });
-
-//     // Clear the input field after sending
-//     messageInput.value = '';
-// }
-
-// // Listen for incoming messages from the server
-// socket.on('message', function(data) {
-//     const chatBox = document.getElementById('chat-box'); // Chat box container
-//     const messageBubble = document.createElement('div'); // Create a message bubble
-
-//     // Add styling and content to the message bubble
-//     messageBubble.className = data.sender === username ? 'message-bubble user' : 'message-bubble other'; // Different styling for user and others
-//     messageBubble.innerHTML = `
-//         <p><strong>${data.sender}</strong></p> <!-- Sender -->
-//         <p>${data.message}</p> <!-- Message content -->
-//     `;
-
-//     // Append the message bubble to the chat box
-//     chatBox.appendChild(messageBubble);
-//     chatBox.scrollTop = chatBox.scrollHeight; // Auto-scroll to the latest message
-// });
-
-// // Handle room joining confirmation
-// socket.on('joined_room', function(data) {
-//     console.log(`You have joined room: ${data.room_id}`);
-// });
-
-// // Event listener for the send button
-// document.getElementById('send-button').addEventListener('click', sendMessage);
-
-// // Event listener for pressing Enter to send a message
-// document.addEventListener('keypress', function(event) {
-//     if (event.key === 'Enter') {
-//         sendMessage();
-//     }
-// });
-
-
-
-
-// Establish WebSocket connection
-const socket = io();
-
-
-sessionStorage.setItem("username", "{{ username }}");
-sessionStorage.setItem("dp", "{{ dp }}");
-sessionStorage.setItem("room_id", "{{ current_room_id }}");
-
-
-
-
-// Join the room
-const room = "{{ room_id }}"; // Dynamic room ID from backend
-const username = sessionStorage.getItem("username");
-const dp = sessionStorage.getItem("dp") || "/static/uploads/2.jpg"; // Default profile picture if not set
-socket.emit("join", { username: username, room: room });
-
-// Send a message
+// Send Message
 function sendMessage() {
+    if (!socket) return;
     const messageInput = document.getElementById("message");
     const message = messageInput.value.trim();
 
     if (message) {
-        // Emit the message to the server
         socket.emit("message", {
-            // username: username,
-            // dp: dp,
-            // room: room,
-            // message: message
-            username: sessionStorage.getItem("username"),  // Retrieve username from sessionStorage
-            dp: sessionStorage.getItem("dp") || "/static/uploads/2.jpg",
-            room: sessionStorage.getItem("room_id"),  // Ensure correct room ID is sent
             message: message
         });
-        // Clear the input field after sending
         messageInput.value = "";
-    } else {
-        console.error("Cannot send an empty message!");
     }
 }
 
-
-
-// Receive messages
-socket.on("message", function (data) {
-    // Check if the data received is valid
-    if (data && data.username && data.dp && data.message) {
-        const chatBox = document.querySelector(".chat-box");
-
-        // Create a new message bubble
-        const messageDiv = document.createElement("div");
-        messageDiv.classList.add("message");
-
-        // Populate the message bubble with user info and message content
-        messageDiv.innerHTML = `
-            <div class="profile">
-                <img src="${data.dp}" alt="Profile Photo" class="profile-pic">
-                <strong>${data.username}</strong>
-            </div>
-            <p>${data.message}</p>
-        `;
-
-        // Append the message bubble to the chat box
-        chatBox.appendChild(messageDiv);
-        chatBox.scrollTop = chatBox.scrollHeight; // Auto-scroll to the latest message
-    } else {
-        console.error("Invalid message data received:", data);
-    }
-});
-
-// Create a new room
-document.getElementById("create-room").addEventListener("click", function () {
-    const roomName = prompt("Enter Room Name:");
-    if (roomName) {
-        fetch('/create_room', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ room_name: roomName })
-        }).then(response => response.json())
-          .then(data => {
-              if (data.success) {
-                  window.location.href = `/join_room/${data.room_id}`;
-              }
-          });
-    }
-});
-
-function joinRoomById() {
-    const roomId = document.getElementById("join-room-id").value.trim();
-
-    // Check if the user is logged in
-    if (!sessionStorage.getItem("username")) {
-        alert("You must be logged in to join a room!");
-        window.location.href = "/login"; // Redirect to login page
-        return;
-    }
-
-    // Proceed with joining the room
-    if (roomId) {
-        window.location.href = `/join_room/${roomId}`; // Redirect to the specified room
-    } else {
-        alert("Please enter a valid Room ID!");
-    }
+const sendBtn = document.getElementById("send-btn");
+if (sendBtn) {
+    sendBtn.addEventListener("click", sendMessage);
 }
 
-
-// Logout functionality
-// document.getElementById("logout").addEventListener("click", function () {
-//     fetch('/logout', { method: 'POST', credentials: 'include' })
-//         .then(response => {
-//             if (response.ok) {
-//                 window.location.href = '/'; // Redirect to the login page
-//             }
-//         })
-//         .catch(error => console.error("Logout failed:", error));
-// });
-
-// Dark Mode Toggle
-// Dark Mode Toggle Functionality
-const themeToggleButton = document.getElementById("theme-toggle");
-
-// Track whether dark mode is enabled
-let isDarkMode = false;
-
-themeToggleButton.addEventListener("click", () => {
-    isDarkMode = !isDarkMode; // Toggle the state
-
-    // Add or remove the "dark-mode" class to the <body>
-    document.body.classList.toggle("dark-mode", isDarkMode);
-
-    // Dynamically update the button text based on mode
-    themeToggleButton.textContent = isDarkMode ? "☀️ Light Mode" : "🌙 Dark Mode";
-});
-
-// Update profile modal functionality
-// document.getElementById("update-profile").addEventListener("click", function () {
-//     const modal = document.getElementById("profile-modal");
-//     modal.style.display = "block"; // Show modal
-// });
-
-document.getElementById("profile-form").addEventListener("submit", function (e) {
-    e.preventDefault();
-    const usernameInput = document.getElementById("username");
-    const dpInput = document.getElementById("dp");
-
-    // Save updated profile data in sessionStorage
-    sessionStorage.setItem("username", usernameInput.value);
-    sessionStorage.setItem("dp", dpInput.value);
-
-    alert("Profile updated!");
-    document.getElementById("profile-modal").style.display = "none"; // Hide modal
-});
-
-// Join a specific room
-function joinRoom(roomId) {
-    socket.emit("join_room", { room_id: roomId }); // Emit room ID to server
-    console.log(`Joined room: ${roomId}`);
+const messageInput = document.getElementById("message");
+if (messageInput) {
+    messageInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") sendMessage();
+    });
 }
 
-// Event listener for pressing Enter to send a message
-document.addEventListener("keypress", function(event) {
-    if (event.key === "Enter") {
-        sendMessage(); // Trigger sendMessage function on Enter key press
+// Receive Message
+if (socket) {
+    socket.on("message", (data) => {
+        const chatBox = document.getElementById("chat-box");
+        if (!chatBox) return;
+
+        const messageWrapper = document.createElement("div");
+        messageWrapper.className = "message-wrapper";
+
+        const isSystem = data.username === "System";
+
+        if (isSystem) {
+            messageWrapper.innerHTML = `<div class="system-message">${data.message}</div>`;
+        } else {
+            const time = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
+            messageWrapper.innerHTML = `
+                <div class="message-header">
+                    <img src="/static/uploads/${data.dp}" alt="DP" class="msg-dp">
+                    <strong>${data.username}</strong>
+                </div>
+                <div class="message-bubble">
+                    <p>${data.message}</p>
+                    <span class="timestamp">${time}</span>
+                </div>
+            `;
+        }
+
+        chatBox.appendChild(messageWrapper);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    });
+
+    socket.on("user_kicked", (data) => {
+        // If the kicked user is me, redirect
+        if (typeof currentUsername !== 'undefined' && data.username === currentUsername) {
+            showToast("You have been removed from the room.", "error");
+            setTimeout(() => window.location.href = "/chat", 2000);
+        }
+    });
+
+    socket.on("room_deleted", (data) => {
+        showToast(data.message, "error");
+        setTimeout(() => window.location.href = "/chat", 3000);
+    });
+}
+
+// Toast Notifications
+function showToast(message, type = "success") {
+    let toast = document.getElementById("toast");
+    if (!toast) {
+        toast = document.createElement("div");
+        toast.id = "toast";
+        document.body.appendChild(toast);
+    }
+    // Fallback if message is empty or null
+    toast.textContent = message || (type === "error" ? "Something went wrong. Please try again." : "Action successful!");
+    toast.className = `toast show ${type}`;
+    setTimeout(() => {
+        toast.className = toast.className.replace("show", "");
+    }, 3000);
+}
+
+// Handle Forms
+document.addEventListener("DOMContentLoaded", () => {
+    // Restore Theme
+    if (localStorage.getItem("theme") === "dark") {
+        document.body.classList.add("dark-mode");
+    }
+
+    const forms = {
+        register: document.getElementById("register-form"),
+        login: document.getElementById("login-form"),
+        joinCode: document.getElementById("join-code-form"),
+        createRoom: document.getElementById("create-room-form"),
+        upload: document.getElementById("upload-form"),
+        profileDetails: document.getElementById("profile-details-form")
+    };
+
+    const confirmDeleteBtn = document.getElementById("confirm-delete-btn");
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.addEventListener("click", async () => {
+            if (!roomToDelete) return;
+            try {
+                const response = await fetch(`/delete_room/${roomToDelete}`);
+                const result = await response.json();
+                if (result.status) {
+                    window.location.href = "/chat";
+                } else {
+                    showToast(result.message, "error");
+                    closeDeleteModal();
+                }
+            } catch (err) {
+                showToast("Error deleting room", "error");
+                closeDeleteModal();
+            }
+        });
+    }
+
+    const clearErrors = (form) => {
+        form.querySelectorAll('.error-text').forEach(el => el.textContent = '');
+        form.querySelectorAll('input').forEach(el => el.classList.remove('input-error'));
+    };
+
+    const showError = (form, fieldName, message) => {
+        const field = form.querySelector(`[name="${fieldName}"]`);
+        if (field) {
+            field.classList.add('input-error');
+            const errorSpan = field.parentElement.querySelector('.error-text');
+            if (errorSpan) errorSpan.textContent = message;
+        }
+    };
+
+    const handleForm = async (form, redirectUrl = null) => {
+        if (!form) return;
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            clearErrors(form);
+
+            const formData = new FormData(form);
+            const action = form.getAttribute("action");
+
+            // Basic Field Validation
+            let hasError = false;
+            form.querySelectorAll('input[required]').forEach(input => {
+                if (!input.value.trim()) {
+                    showError(form, input.name, "This field is required.");
+                    hasError = true;
+                }
+            });
+
+            if (action === "/register") {
+                const email = formData.get("email");
+                if (email && (!email.includes("@") || !email.includes("."))) {
+                    showError(form, "email", "Please enter a valid email address.");
+                    hasError = true;
+                }
+                const pass = formData.get("password");
+                const confirm = formData.get("confirm_password");
+                if (pass !== confirm) {
+                    showError(form, "confirm_password", "Passwords do not match.");
+                    hasError = true;
+                }
+            }
+
+            if (hasError) return;
+
+            try {
+                const response = await fetch(action, {
+                    method: "POST",
+                    body: formData,
+                    headers: { "X-Requested-With": "XMLHttpRequest" }
+                });
+
+                const result = await response.json().catch(() => ({ status: false, message: "The server sent an invalid response." }));
+
+                if (result.status) {
+                    if (result.data.redirect) window.location.href = result.data.redirect;
+                    else if (redirectUrl) window.location.href = redirectUrl;
+                    else window.location.reload();
+                } else {
+                    // Try to map error to specific fields if possible, otherwise use Toast
+                    if (result.message.toLowerCase().includes("username")) showError(form, "username", result.message);
+                    else if (result.message.toLowerCase().includes("email")) showError(form, "email", result.message);
+                    else if (result.message.toLowerCase().includes("password")) showError(form, "password", result.message);
+                    else showToast(result.message || "An unexpected error occurred.", "error");
+                }
+            } catch (err) {
+                showToast("Connection lost. Are you online?", "error");
+            }
+        });
+    };
+
+    handleForm(forms.register);
+    handleForm(forms.login);
+    handleForm(forms.joinCode, "/chat");
+    handleForm(forms.createRoom, "/chat");
+    handleForm(forms.upload);
+    handleForm(forms.profileDetails);
+
+    // Theme Toggle
+    const themeToggle = document.getElementById("theme-toggle");
+    if (themeToggle) {
+        themeToggle.addEventListener("click", () => {
+            document.body.classList.toggle("dark-mode");
+            const isDark = document.body.classList.contains("dark-mode");
+            localStorage.setItem("theme", isDark ? "dark" : "light");
+        });
     }
 });
-
-
-
-

@@ -1,331 +1,15 @@
-# import os
-# from flask import Flask, render_template, request, redirect, url_for, session
-# from flask_socketio import SocketIO, join_room, leave_room
-# from werkzeug.utils import secure_filename
-# from werkzeug.security import generate_password_hash, check_password_hash
-# import json
-
-# from flask import Flask, render_template, request, session
-# from flask_socketio import SocketIO, emit
-# import threading
-# import socket
-# from server.database import connect_db  # Ensure server/database.py exists and is configured correctly
-# from server.config import SECRET_KEY  # Ensure server/config.py loads SECRET_KEY properly
-# from werkzeug.security import generate_password_hash
-# from flask import request, redirect, url_for
-# from werkzeug.security import check_password_hash, generate_password_hash
-# from werkzeug.utils import secure_filename
-
-
-# # Flask app configuration
-# app = Flask(__name__, template_folder="client/ui/templates", static_folder="client/ui/static")
-# app.config['SECRET_KEY'] = SECRET_KEY
-# UPLOAD_FOLDER = 'client/ui/static/uploads'
-# app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-# socketio = SocketIO(app)
-
-# # Store chat history and active rooms
-# chat_history = {}
-
-# ### ---- ROUTES ---- ###
-
-# @app.route('/')
-# def default():
-#     if session.get('logged_in'):
-#         return redirect(url_for('chat'))
-#     return redirect(url_for('login'))
-
-# @app.route('/register', methods=['GET', 'POST'])
-# def register():
-#     if request.method == 'POST':
-#         username = request.form['username']
-#         password = request.form['password']
-#         hashed_password = generate_password_hash(password)
-#         default_dp = "2.jpg"
-
-#         # Save user details in a dummy database or file (you can replace this with a real database)
-#         conn = connect_db()
-#         cursor = conn.cursor()
-#         try:
-#             cursor.execute("INSERT INTO users (username, password_hash, profile_photo) VALUES (%s, %s, %s)", 
-#                            (username, hashed_password, default_dp))
-#             conn.commit()
-#         except Exception as e:
-#             conn.rollback()
-#             return f"Error: {str(e)}"
-#         finally:
-#             conn.close()
-
-#         session['logged_in'] = True
-#         session['username'] = username
-#         session['dp'] = f"/static/uploads/{default_dp}"
-#         return redirect(url_for('profile'))
-#     return render_template('register.html')
-
-# @app.route('/login', methods=['GET', 'POST'])
-# def login():
-#     if request.method == 'POST':
-#         username = request.form['username']
-#         password = request.form['password']
-#         session['logged_in'] = True
-#         session['username'] = username
-#         session['dp'] = f"/static/uploads/{result[1]}"
-
-
-#         conn = connect_db()
-#         cursor = conn.cursor()
-#         cursor.execute("SELECT password_hash, profile_photo FROM users WHERE username = %s", (username,))
-#         result = cursor.fetchone()
-#         conn.close()
-
-#         if result and check_password_hash(result[0], password):
-#             session['logged_in'] = True
-#             session['username'] = username
-#             session['dp'] = f"/static/uploads/{result[1]}"
-#             return redirect(url_for('chat'))
-#         else:
-#             return "Invalid credentials. Please try again."
-
-#     return render_template('login.html')
-
-# @app.route('/chat')
-# def chat():
-#     if not session.get('logged_in'):
-#         return redirect(url_for('login'))
-
-#     username = session['username']
-#     room_id = session.get('room_id', 1)  # Default to room 1
-#     dp = session.get('dp')
-
-#     conn = connect_db()
-#     cursor = conn.cursor()
-
-#     # Fetch all available rooms
-#     cursor.execute("SELECT id, room_name FROM chat_rooms ORDER BY created_at DESC")
-#     rooms = cursor.fetchall()
-
-#     # Fetch messages for the current room
-#     cursor.execute("""
-#         SELECT messages.sender, messages.message, messages.timestamp, users.profile_photo
-#         FROM messages
-#         JOIN users ON messages.sender = users.username
-#         WHERE messages.room_id = %s
-#         ORDER BY messages.timestamp ASC
-#     """, (room_id,))
-#     messages = cursor.fetchall()
-#     conn.close()
-
-#     return render_template('chat.html', username=username, dp=dp, messages=messages, rooms=rooms, current_room_id=room_id)
-
-# @app.route('/create_room', methods=['GET', 'POST'])
-# def create_room():
-#     if not session.get('logged_in'):
-#         return redirect(url_for('login'))
-
-#     if request.method == 'POST':
-#         room_name = request.form['room_name']
-#         conn = connect_db()
-#         cursor = conn.cursor()
-#         cursor.execute("INSERT INTO chat_rooms (room_name, created_at) VALUES (%s, NOW())", (room_name,))
-#         conn.commit()
-#         conn.close()
-#         return redirect(url_for('chat'))
-    
-#     return render_template('create_room.html')
-
-# @app.route('/logout')
-# def logout():
-#     session.clear()
-#     return redirect(url_for('login'))
-
-# @app.route('/upload_dp', methods=['POST'])
-# def upload_dp():
-#     if not session.get('logged_in'):
-#         return redirect(url_for('login'))
-
-#     file = request.files['profile_photo']
-#     if file:
-#         filename = secure_filename(file.filename)
-#         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-#         file.save(filepath)
-
-#         conn = connect_db()
-#         cursor = conn.cursor()
-#         cursor.execute("UPDATE users SET profile_photo = %s WHERE username = %s", (filename, session['username']))
-#         conn.commit()
-#         conn.close()
-
-#         session['dp'] = f"/static/uploads/{filename}"
-#         return redirect(url_for('profile'))
-#     return "Failed to upload photo."
-
-# # @app.route('/join_room/<int:room_id>')
-# # def join_room(room_id):
-# #     session['room_id'] = room_id  # Store the selected room ID in the session
-# #     return redirect(url_for('chat'))
-
-
-# @app.route('/join_room/<int:room_id>')
-# def join_room(room_id):
-#     # Check if the user is authenticated
-#     if not session.get('logged_in'):
-#         return redirect(url_for('login'))  # Redirect to login if not authenticated
-
-#     # Save the room ID in the session
-#     session['room_id'] = room_id
-#     return redirect(url_for('chat'))  # Redirect to the chat page
-
-
-# ### ---- SOCKET.IO EVENTS ---- ###
-
-# # @socketio.on("join")
-# # def handle_join(data):
-# #     username = data.get("username")
-# #     room = data.get("room")
-# #     join_room(room)
-
-# #     if room not in chat_history:
-# #         chat_history[room] = []
-# #     socketio.emit("message", {"username": "System", "message": f"{username} has joined the room."}, room=room)
-
-# @socketio.on("join")
-# def handle_join(data):
-#     # Check if the user is authenticated
-#     if not session.get('logged_in'):  # Validate the session
-#         print("Unauthorized attempt to join room.")
-#         return  # Ignore the event if the user is not authenticated
-
-#     # Extract details from the session and data
-#     username = session.get("username")
-#     room_id = data.get("room")
-
-#     # Join the specified room
-#     join_room(room_id)
-#     print(f"{username} joined room {room_id}")
-
-#     # Notify other users in the room
-#     socketio.emit("message", {
-#         "username": "System",
-#         "message": f"{username} has joined the room."
-#     }, room=room_id)
-
-
-# # @socketio.on("message")
-# # def handle_message(data):
-# #     if isinstance(data, str):
-# #      data = json.loads(data) 
-# #     username = data.get("username")
-# #     dp = data.get("dp")
-# #     room = data.get("room")
-# #     message = data.get("message")
-
-# #     if not all([username, room, message]):
-# #         return
-
-# #     chat_entry = {"username": username, "dp": dp, "message": message}
-# #     chat_history.setdefault(room, []).append(chat_entry)
-# #     socketio.emit("message", chat_entry, room=room)
-
-
-# @socketio.on("message")
-# def handle_message(data):
-#     print(f"Session data: {session}")
-#     import json
-
-#     try:
-#         # Parse incoming data if it's a string
-#         if isinstance(data, str):
-#             data = json.loads(data)
-        
-#         # Extract fields from the data dictionary
-#         username = data.get("username")
-#         dp = data.get("dp", "/static/uploads/2.jpg")  # Default DP
-#         room = data.get("room")
-#         message = data.get("message")
-
-#         # Validate fields
-#         if not all([username, room, message]):
-#             print(f"Error: Missing required fields - {data}")
-#             return
-
-#         print(f"Received message: {data}")  # Debug log
-
-#         # Insert message into the database
-#         conn = connect_db()
-#         cursor = conn.cursor()
-#         try:
-#             cursor.execute("""
-#                 INSERT INTO messages (room_id, sender, message, timestamp)
-#                 VALUES (%s, %s, %s, NOW())
-#             """, (room, username, message))
-#             conn.commit()
-#             print(f"Message successfully saved: {message}")
-#         except Exception as db_error:
-#             conn.rollback()
-#             print(f"Database error: {db_error}")
-#             return
-#         finally:
-#             conn.close()
-
-#         # Emit the message to the room
-#         chat_entry = {"username": username, "dp": dp, "message": message}
-#         socketio.emit("message", chat_entry, room=room)
-
-#     except json.JSONDecodeError as e:
-#         print(f"JSON parsing error: {e}")
-#     except Exception as e:
-#         print(f"Unexpected error: {e}")
-
-
-
-# @app.route('/profile', methods=['GET', 'POST'])
-# def profile():
-#     if not session.get('logged_in'):
-#         return redirect(url_for('login'))  # Redirect to login if not authenticated
-    
-#     username = session['username']
-#     conn = connect_db()
-#     cursor = conn.cursor()
-#     cursor.execute("""
-#         SELECT profile_photo, username 
-#         FROM users 
-#         WHERE username = %s
-#     """, (username,))
-#     result = cursor.fetchone()
-#     conn.close()
-
-#     if request.method == 'POST':
-#         # Handle profile update logic here (e.g., updating username or profile picture)
-#         session['username'] = request.form['username']
-#         session['dp'] = request.form['dp']
-#         return redirect(url_for('chat'))  # Redirect to chat after updating profile
-
-#     return render_template('profile.html', username=result[1], profile_photo=result[0])
-  
-
-# ### ---- MAIN APP ENTRY POINT ---- ###
-# if __name__ == "__main__":
-#     socketio.run(app, port=5001, debug=True)
-
-
-
-
-
-
-
-
-
-
-
-#  second chat given by chat gpt 
-
 import os
-from flask import Flask, render_template, request, redirect, url_for, session
-from flask_socketio import SocketIO, join_room, leave_room
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask_socketio import SocketIO, join_room, leave_room, emit
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from server.database import connect_db  # Database connection utility
-from server.config import SECRET_KEY  # Secret key for session management
+from server.database import (
+    register_user, login_user, save_message, get_chat_history, 
+    create_room, get_rooms, get_room_by_code, update_profile_photo,
+    add_user_to_room, update_user_details, update_room_name,
+    promote_to_admin, remove_user_from_room
+)
+from server.config import SECRET_KEY
 
 # Flask app configuration
 app = Flask(__name__, template_folder="client/ui/templates", static_folder="client/ui/static")
@@ -334,8 +18,22 @@ UPLOAD_FOLDER = 'client/ui/static/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 socketio = SocketIO(app)
 
-# Store active rooms and chat history
-chat_history = {}
+@app.template_filter('to_ist')
+def to_ist(dt):
+    if not dt: return ""
+    from datetime import timedelta
+    # Add 5 hours and 30 minutes for IST
+    ist_dt = dt + timedelta(hours=5, minutes=30)
+    return ist_dt.strftime('%H:%M')
+
+### ---- UTILS ---- ###
+
+def api_response(status, message, data=None):
+    return jsonify({
+        "status": status,
+        "message": message,
+        "data": data or {}
+    })
 
 ### ---- ROUTES ---- ###
 
@@ -349,53 +47,77 @@ def default():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        full_name = request.form.get('full_name')
+        email = request.form.get('email')
+        username = request.form.get('username')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+
+        # Validations
+        if not all([full_name, email, username, password, confirm_password]):
+            return api_response(False, "All fields are required. Please fill in everything."), 400
+        
+        if password != confirm_password:
+            return api_response(False, "Passwords do not match. Please re-enter."), 400
+        
+        if len(password) < 6:
+            return api_response(False, "Security check: Password must be at least 6 characters."), 400
+
+        if "@" not in email or "." not in email:
+            return api_response(False, "Please enter a valid email address."), 400
+
+        # Check for existing user specifically
+        db_user = login_user(username)
+        if db_user:
+            return api_response(False, "This username is already taken. Try another?"), 400
+        
+        db_email = login_user(email)
+        if db_email:
+            return api_response(False, "An account with this email already exists."), 400
+
         hashed_password = generate_password_hash(password)
         default_dp = "2.jpg"
 
-        # Save user details in a dummy database or file (you can replace this with a real database)
-        conn = connect_db()
-        cursor = conn.cursor()
         try:
-            cursor.execute("INSERT INTO users (username, password_hash, profile_photo) VALUES (%s, %s, %s)", 
-                           (username, hashed_password, default_dp))
-            conn.commit()
+            register_user(username, hashed_password, full_name, email, default_dp)
         except Exception as e:
-            conn.rollback()
-            return f"Error: {str(e)}"
-        finally:
-            conn.close()
+            return api_response(False, "Registration failed due to a server error. Please try again later."), 500
 
         session['logged_in'] = True
         session['username'] = username
+        session['full_name'] = full_name
         session['dp'] = f"/static/uploads/{default_dp}"
-        return redirect(url_for('profile'))
+        
+        # Determine if it's an AJAX request or form submission
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return api_response(True, "Registration successful!", {"redirect": url_for('chat')})
+        return redirect(url_for('chat'))
+        
     return render_template('register.html')
 
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
+        identifier = request.form['username'] # Can be username or email
         password = request.form['password']
 
-        conn = connect_db()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT id, password_hash, profile_photo FROM users WHERE username = %s
-        """, (username,))
-        result = cursor.fetchone()
-        conn.close()
+        user = login_user(identifier)
 
-        if result and check_password_hash(result[1], password):
-            session['logged_in'] = True
-            session['username'] = username
-            session['id'] = result[0]  # Store `id` in the session
-            session['dp'] = f"/static/uploads/{result[2]}"
-            return redirect(url_for('chat'))
+        if user:
+            if check_password_hash(user['password_hash'], password):
+                session['logged_in'] = True
+                session['username'] = user['username']
+                session['full_name'] = user['full_name']
+                session['dp'] = f"/static/uploads/{user['profile_photo']}"
+
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return api_response(True, "Welcome back! Login successful.", {"redirect": url_for('chat')})
+                return redirect(url_for('chat'))
+            else:
+                return api_response(False, "Incorrect password. Please try again."), 401
         else:
-            return "Invalid credentials. Please try again."
+            return api_response(False, "No account found with this username/email."), 404
 
     return render_template('login.html')
 
@@ -406,53 +128,159 @@ def chat():
     if not session.get('logged_in'):
         return redirect(url_for('login'))
 
-    print(f"Session data: {session}")  # Debugging log to inspect session variables
-
     username = session.get('username')
-    user_id = session.get('id')  # Fetch `id` from the session
     dp = session.get('dp')
 
-    conn = connect_db()
-    cursor = conn.cursor()
-
-    # Fetch all available rooms
-    cursor.execute("SELECT id, room_name FROM chat_rooms ORDER BY created_at DESC")
-    rooms = cursor.fetchall()
+    # Fetch rooms where user is a member
+    rooms = get_rooms(username)
+    for r in rooms:
+        r['_id'] = str(r['_id'])
 
     # Fetch chat history for the current room
-    room_id = session.get('room_id', 1)  # Default to room 1 if no room selected
-    cursor.execute("""
-        SELECT messages.sender, messages.message, messages.timestamp, users.profile_photo
-        FROM messages
-        JOIN users ON messages.sender = users.username
-        WHERE messages.room_id = %s
-        ORDER BY messages.timestamp ASC
-    """, (room_id,))
-    messages = cursor.fetchall()
-    conn.close()
+    room_id = session.get('room_id')
+    
+    # If no room selected, but there are rooms, default to the first one
+    if not room_id and rooms:
+        room_id = rooms[0]['_id']
+        session['room_id'] = room_id
+    
+    messages = []
+    members = []
+    current_room = None
+    if room_id:
+        from server.database import get_room_by_id, get_room_members, get_chat_history
+        current_room = get_room_by_id(room_id)
+        if not current_room:
+            session.pop('room_id', None)
+            return redirect(url_for('chat'))
+            
+        current_room['_id'] = str(current_room['_id'])
+        if username not in current_room.get('members', []):
+            session.pop('room_id', None)
+            return redirect(url_for('chat'))
 
-    return render_template('chat.html', username=username, dp=dp, messages=messages, rooms=rooms, current_room_id=room_id)
+        members = get_room_members(current_room.get('members', []))
+        messages = get_chat_history(room_id)
+        # Convert ObjectId to string for messages
+        for msg in messages:
+            msg['_id'] = str(msg['_id'])
+            # Fetch sender's profile photo
+            user = login_user(msg['sender'])
+            msg['profile_photo'] = user['profile_photo'] if user else '2.jpg'
 
+    return render_template('chat.html', 
+                         username=username, 
+                         dp=dp, 
+                         messages=messages, 
+                         rooms=rooms, 
+                         current_room_id=str(room_id) if room_id else None,
+                         members=members,
+                         current_room=current_room)
 
 
 @app.route('/create_room', methods=['GET', 'POST'])
-def create_room():
+def create_room_route():
     if not session.get('logged_in'):
         return redirect(url_for('login'))
 
     if request.method == 'POST':
-        room_name = request.form['room_name']
-        conn = connect_db()
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO chat_rooms (room_name, created_at) VALUES (%s, NOW())", (room_name,))
-        conn.commit()
-        conn.close()
-        return redirect(url_for('chat'))
+        room_name = request.form.get('room_name', '').strip()
+        username = session['username']
+        
+        if not room_name or len(room_name) < 3:
+            return api_response(False, "Room name must be at least 3 characters long."), 400
+            
+        import uuid
+        room_code = str(uuid.uuid4())[:8].upper()
+        
+        try:
+            res = create_room(room_name, room_code, username)
+            session['room_id'] = str(res.inserted_id)
+            
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return api_response(True, f"Room '{room_name}' created successfully!", {
+                    "room_id": str(res.inserted_id), 
+                    "room_code": room_code,
+                    "redirect": url_for('chat')
+                })
+            return redirect(url_for('chat'))
+        except Exception as e:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return api_response(False, "Failed to create room. Please try a different name."), 500
+            return "Error creating room", 500
     
     return render_template('create_room.html')
 
 
-@app.route('/join_room/<int:room_id>')
+@app.route('/join_room_by_code', methods=['POST'])
+def join_room_by_code_route():
+    if not session.get('logged_in'):
+        return api_response(False, "Unauthorized"), 401
+
+    room_code = request.form.get('room_code').upper()
+    if not room_code:
+        return api_response(False, "Please enter a room code."), 400
+
+    username = session['username']
+    room = get_room_by_code(room_code)
+    
+    if room:
+        if username in room.get('members', []):
+            session['room_id'] = str(room['_id'])
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return api_response(True, "You are already a member! Opening room...", {"room_id": str(room['_id']), "redirect": url_for('chat')})
+            return redirect(url_for('chat'))
+        
+        add_user_to_room(room_code, username)
+        session['room_id'] = str(room['_id'])
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return api_response(True, f"Successfully joined {room['room_name']}!", {"room_id": str(room['_id']), "redirect": url_for('chat')})
+        return redirect(url_for('chat'))
+    else:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return api_response(False, "Room code not found. Double-check your code?"), 404
+        return "Room not found", 404
+
+
+@app.route('/leave_room/<room_id>')
+def leave_room_route_logic(room_id):
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+    
+    username = session['username']
+    from server.database import remove_user_from_room
+    remove_user_from_room(room_id, username)
+    
+    # Notify room
+    socketio.emit("message", {
+        "username": "System",
+        "message": f"{username} has left the chat."
+    }, room=room_id)
+    
+    session.pop('room_id', None)
+    return redirect(url_for('chat'))
+
+@app.route('/delete_room/<room_id>')
+def delete_room_route_logic(room_id):
+    if not session.get('logged_in'):
+        return api_response(False, "Unauthorized"), 401
+    
+    username = session['username']
+    from server.database import get_room_by_id, delete_room
+    room = get_room_by_id(room_id)
+    
+    if room and username in room.get('admins', []):
+        room_name = room.get('room_name')
+        # Notify room deletion before removing data
+        socketio.emit("room_deleted", {"room_id": room_id, "message": f"Admin {username} has deleted the group '{room_name}'."}, room=room_id)
+        
+        delete_room(room_id)
+        session.pop('room_id', None)
+        return api_response(True, "Room deleted successfully!", {"redirect": url_for('chat')})
+    else:
+        return api_response(False, "You do not have permission to delete this room."), 403
+
+@app.route('/join_room/<room_id>')
 def join_room_route(room_id):
     if not session.get('logged_in'):
         return redirect(url_for('login'))
@@ -460,6 +288,94 @@ def join_room_route(room_id):
     session['room_id'] = room_id
     return redirect(url_for('chat'))
 
+
+@app.route('/update_profile', methods=['POST'])
+def update_profile():
+    if not session.get('logged_in'):
+        return api_response(False, "Unauthorized"), 401
+    
+    old_username = session['username']
+    new_username = request.form.get('username', old_username).strip()
+    new_full_name = request.form.get('full_name', session['full_name']).strip()
+
+    if not new_username or not new_full_name:
+        return api_response(False, "Username and Full Name are required."), 400
+
+    # If username changed, check if new one exists
+    if new_username != old_username:
+        if login_user(new_username):
+            return api_response(False, "This username is already taken."), 400
+
+    try:
+        update_user_details(old_username, new_username, new_full_name)
+        session['username'] = new_username
+        session['full_name'] = new_full_name
+        return api_response(True, "Profile updated successfully!", {"redirect": url_for('profile')})
+    except Exception as e:
+        return api_response(False, "Failed to update profile."), 500
+
+@app.route('/update_room_name/<room_id>', methods=['POST'])
+def update_room_name_route(room_id):
+    if not session.get('logged_in'):
+        return api_response(False, "Unauthorized"), 401
+    
+    username = session['username']
+    from server.database import get_room_by_id
+    room = get_room_by_id(room_id)
+    
+    if not room or username not in room.get('admins', []):
+        return api_response(False, "You don't have permission to rename this room."), 403
+    
+    new_name = request.form.get('room_name', '').strip()
+    if not new_name:
+        return api_response(False, "Room name cannot be empty."), 400
+        
+    update_room_name(room_id, new_name)
+    return api_response(True, "Room name updated!", {"new_name": new_name})
+
+@app.route('/promote_member/<room_id>/<member_username>')
+def promote_member_route(room_id, member_username):
+    if not session.get('logged_in'):
+        return api_response(False, "Unauthorized"), 401
+        
+    username = session['username']
+    from server.database import get_room_by_id
+    room = get_room_by_id(room_id)
+    
+    if not room or username not in room.get('admins', []):
+        return api_response(False, "Only admins can promote others."), 403
+        
+    promote_to_admin(room_id, member_username)
+    return api_response(True, f"{member_username} is now an admin!")
+
+@app.route('/kick_member/<room_id>/<member_username>')
+def kick_member_route(room_id, member_username):
+    if not session.get('logged_in'):
+        return api_response(False, "Unauthorized"), 401
+        
+    username = session['username']
+    from server.database import get_room_by_id
+    room = get_room_by_id(room_id)
+    
+    if not room or username not in room.get('admins', []):
+        return api_response(False, "Only admins can remove members."), 403
+        
+    if member_username == room.get('creator'):
+        return api_response(False, "You cannot remove the room creator."), 403
+    
+    from server.database import remove_user_from_room
+    remove_user_from_room(room_id, member_username)
+    
+    # Notify room
+    socketio.emit("message", {
+        "username": "System",
+        "message": f"Admin {username} removed {member_username}."
+    }, room=room_id)
+    
+    # Also notify the specific user to redirect if possible (simpler via room broadcast with check)
+    socketio.emit("user_kicked", {"username": member_username, "room_id": room_id}, room=room_id)
+    
+    return api_response(True, f"{member_username} has been removed.")
 
 @app.route('/logout')
 def logout():
@@ -469,27 +385,40 @@ def logout():
 @app.route('/profile', methods=['GET', 'POST'])
 def profile():
     if not session.get('logged_in'):
-        return redirect(url_for('login'))  # Redirect to login if not authenticated
+        return redirect(url_for('login'))
     
     username = session['username']
-    conn = connect_db()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT profile_photo, username 
-        FROM users 
-        WHERE username = %s
-    """, (username,))
-    result = cursor.fetchone()
-    conn.close()
+    user = login_user(username)
 
     if request.method == 'POST':
-        # Handle profile update logic here (e.g., updating username or profile picture)
-        session['username'] = request.form['username']
-        session['dp'] = request.form['dp']
-        return redirect(url_for('chat'))  # Redirect to chat after updating profile
+        # Handled by upload_dp generally, but keeping this for structure
+        return redirect(url_for('chat'))
 
-    return render_template('profile.html', username=result[1], profile_photo=result[0])
-  
+    return render_template('profile.html', username=user['username'], profile_photo=user['profile_photo'], full_name=user['full_name'], email=user['email'])
+
+
+@app.route('/upload_dp', methods=['POST'])
+def upload_dp():
+    if not session.get('logged_in'):
+        return api_response(False, "Unauthorized"), 401
+
+    if 'profile_photo' not in request.files:
+        return api_response(False, "We couldn't find the photo file. Please try selecting it again."), 400
+    
+    file = request.files['profile_photo']
+    if file.filename == '':
+        return api_response(False, "It looks like no photo was selected. Please choose a file."), 400
+
+    if file:
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+
+        update_profile_photo(session['username'], filename)
+        session['dp'] = f"/static/uploads/{filename}"
+        return api_response(True, "Looking good! Your profile photo has been updated.", {"dp": session['dp']})
+    
+    return api_response(False, "Oops! Something went wrong while saving your photo. Please try again."), 500
 
 
 ### ---- SOCKET.IO EVENTS ---- ###
@@ -500,19 +429,21 @@ def handle_join(data):
         return
 
     username = session['username']
-    room = data.get("room")
-    join_room(room)
-    socketio.emit("message", {
-        "username": "System",
-        "message": f"{username} has joined the room."
-    }, room=room)
+    room = data.get("room") # This is room_id
+    if room:
+        join_room(room)
+        emit("message", {
+            "username": "System",
+            "message": f"{username} has joined the room."
+        }, room=room)
+        print(f"User {username} joined room {room}")
 
 
 @socketio.on("message")
 def handle_message(data):
     try:
         username = session.get('username')
-        room_id = session.get('room_id', 1)  # Default to room 1 if not set
+        room_id = session.get('room_id')
         message = data.get('message')
         dp = session.get('dp')
 
@@ -520,14 +451,7 @@ def handle_message(data):
             return
 
         # Insert the message into the database
-        conn = connect_db()
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO messages (room_id, sender, message, timestamp)
-            VALUES (%s, %s, %s, NOW())
-        """, (room_id, username, message))
-        conn.commit()
-        conn.close()
+        save_message(username, message, room_id)
 
         # Emit the message to the room
         chat_entry = {"username": username, "dp": dp, "message": message}

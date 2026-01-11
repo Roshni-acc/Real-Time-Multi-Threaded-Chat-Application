@@ -1,39 +1,53 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <title>Profile</title>
-    <link rel="stylesheet" href="/static/styles-dark.css">
+    <title>My Profile - Chat App</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 </head>
+
 <body>
     <div class="profile-container">
-        <h2>Welcome, {{ username }}</h2>
+        <h1>My Profile</h1>
+        <p class="subtitle">{{ full_name }} (@{{ username }})</p>
 
-        <!-- Profile Photo Display -->
         <div class="profile-photo-section">
-            <h3>Your Profile Photo:</h3>
-            <img src="/static/uploads/{{ profile_photo or '2.jpg' }}" 
-                 alt="Profile Photo" 
-                 style="width: 150px; height: 150px; border-radius: 50%; object-fit: cover;">
+            <img src="/static/uploads/{{ profile_photo or '2.jpg' }}" alt="Profile Photo" class="profile-img-large">
+            <p style="color: var(--text-light); opacity: 0.8; font-size: 0.9rem;">{{ email }}</p>
         </div>
-        
 
-        <!-- Profile Photo Upload Form -->
-        <form action="/upload_dp" method="POST" enctype="multipart/form-data">
-            <label for="profile-photo">Change Profile Photo:</label>
-            <input type="file" name="profile_photo" id="profile-photo" required>
-            <button type="submit">Upload</button>
+        <form id="profile-details-form" action="/update_profile" method="POST" novalidate>
+            <div class="form-group">
+                <label for="full_name">Full Name</label>
+                <input type="text" name="full_name" value="{{ full_name }}" required>
+                <span class="error-text"></span>
+            </div>
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" name="username" value="{{ username }}" required>
+                <span class="error-text"></span>
+            </div>
+            <button type="submit">Update Profile</button>
         </form>
 
-        <!-- Navigation Options -->
-        <div class="navigation" style="margin-top: 20px;">
-            <a href="/chat" style="margin-right: 15px;">Start Chatting</a>
-            <a href="/create_room">Create Rooms</a>
-        </div>
+        <form id="upload-form" action="/upload_dp" method="POST" enctype="multipart/form-data" novalidate
+            style="margin-top: 2rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 2rem;">
+            <div class="form-group">
+                <label for="profile-photo">Update Profile Photo</label>
+                <input type="file" name="profile_photo" id="profile-photo" required>
+                <span class="error-text"></span>
+            </div>
+            <button type="submit">Upload Photo</button>
+        </form>
 
-        <div style="margin-top: 20px; text-align: center;">
-            <a href="/logout" style="color: #ff758c; text-decoration: none;">Logout</a>
+        <div style="margin-top: 2rem; display: flex; flex-direction: column; gap: 1rem; align-items: center;">
+            <a href="/chat" class="auth-footer">Back to Chat</a>
+            <a href="/logout" style="color: #ef4444; text-decoration: none; font-size: 0.875rem; font-weight: 600;">Log
+                Out</a>
         </div>
-        
     </div>
+    <script src="/static/script.js"></script>
 </body>
+
 </html>

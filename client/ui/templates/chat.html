@@ -1,87 +1,168 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <title>Chat Application</title>
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <script>
+        const currentUsername = "{{ username }}";
+    </script>
 </head>
+
 <body>
     <div class="chat-container">
-        <!-- Header Section -->
-        <header>
-            <h2>Multi-threaded Chat App</h2>
-            <button id="theme-toggle">🌙 Dark Mode</button>
-
-            <div>
-                <h2>Room: {{ current_room_id }}</h2>
-                <button onclick="window.location.href='profile'">Update Profile</button>
-                <button onclick="window.location.href='/logout'">Logout</button>
-                <button id="create-room" onclick="window.location.href='create_room'">Create Room</button>
+        <!-- Sidebar Area -->
+        <div class="room-sidebar">
+            <div class="sidebar-header">
+                <h2>Chat Rooms</h2>
+                <button id="create-room" onclick="window.location.href='create_room'">+</button>
             </div>
-        </header>
 
-        <!-- Chat Messages Section -->
-        <div class="chat-box">
-            {% for message in messages %}
-                <div style="margin-bottom: 15px;">
-                    <!-- Profile and Username -->
-                    <div style="display: flex; align-items: center; margin-bottom: 5px;">
-                        <img src="/static/uploads/{{ message[3] or '2.jpg' }}" 
-                             alt="Profile Photo" 
-                             style="width: 40px; height: 40px; border-radius: 50%; margin-right: 10px;">
-                        <strong>{{ message[0] }}</strong> <!-- Sender's Name -->
+            <div class="sidebar-content">
+                <div class="join-room-section">
+                    <form action="/join_room_by_code" method="POST" id="join-code-form">
+                        <input type="text" name="room_code" placeholder="Enter Room Code" required>
+                        <button type="submit" style="width: 100%; margin-top: 5px;">Join Room</button>
+                    </form>
+                </div>
+
+                <h3>My Joined Rooms</h3>
+                <ul>
+                    {% for room in rooms %}
+                    <li
+                        class="{% if room._id|string == current_room_id %}active-room{% else %}inactive-room{% endif %}">
+                        <a href="/join_room/{{ room._id }}">
+                            {{ room.room_name }} <span class="room-code-badge">#{{ room.room_code }}</span>
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        <!-- Main Chat Area -->
+        <div class="main-chat" data-room-id="{{ current_room_id }}">
+            <header>
+                <div class="header-main">
+                    <div class="room-info">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <h2 id="room-name-display">{{ current_room.room_name if current_room else 'Select a Room' }}
+                            </h2>
+                            {% if current_room and username in current_room.admins %}
+                            <button class="edit-room-name-btn" onclick="toggleRoomRename()"
+                                title="Rename Room">✎</button>
+                            <div id="room-rename-input-container"
+                                style="display: none; align-items: center; gap: 0.5rem;">
+                                <input type="text" id="new-room-name" class="room-name-input"
+                                    value="{{ current_room.room_name }}">
+                                <button class="action-sm prom-btn"
+                                    onclick="saveRoomName('{{ current_room_id }}')">Save</button>
+                                <button class="action-sm kick-btn" onclick="toggleRoomRename()">Cancel</button>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% if current_room %}
+                        <span class="room-code-display">Code: {{ current_room.room_code }}</span>
+                        {% endif %}
                     </div>
-                    <!-- Message Content -->
-                    <div style="background: #f0f0f0; border-radius: 10px; padding: 10px; max-width: 70%; word-wrap: break-word;">
-                        <p>{{ message[1] }}</p> <!-- Message Content -->
-                        <span style="font-size: small; color: gray;">{{ message[2] }}</span> <!-- Timestamp -->
+                    <div class="header-right">
+                        {% if current_room %}
+                        {% if current_room.creator == username %}
+                        <button onclick="deleteRoom('{{ current_room_id }}')" class="delete-btn action-btn">Delete
+                            Room</button>
+                        {% else %}
+                        <button onclick="location.href='/leave_room/{{ current_room_id }}'"
+                            class="leave-btn action-btn">Leave Room</button>
+                        {% endif %}
+                        {% endif %}
+                        <img src="{{ dp }}" alt="DP" class="header-dp" onclick="window.location.href='profile'">
+                        <div class="brand">
+                            <span>{{ username }}</span>
+                        </div>
+                        <button id="theme-toggle">🌙</button>
+                        <button onclick="window.location.href='/logout'" class="logout-btn">Logout</button>
                     </div>
                 </div>
-            {% endfor %}
+            </header>
+
+            <div class="chat-content-flex">
+                <div class="chat-box" id="chat-box">
+                    {% if not current_room_id %}
+                    <div class="system-message">Select a room to start chatting</div>
+                    {% endif %}
+                    {% for message in messages %}
+                    <div class="message-wrapper">
+                        <div class="message-header">
+                            <img src="/static/uploads/{{ message.profile_photo }}" alt="DP" class="msg-dp">
+                            <strong>{{ message.sender }}</strong>
+                        </div>
+                        <div class="message-bubble">
+                            <p>{{ message.message }}</p>
+                            <span class="timestamp">{{ message.timestamp|to_ist if message.timestamp else '' }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Member List Sidebar -->
+                {% if current_room %}
+                <div class="member-sidebar">
+                    <h3>Members ({{ members|length }})</h3>
+                    <ul class="member-list">
+                        {% for member in members %}
+                        <li class="member-item">
+                            <img src="/static/uploads/{{ member.profile_photo }}" alt="DP" class="member-dp">
+                            <div class="member-info">
+                                <span class="member-name">{{ member.full_name }}</span>
+                                {% if member.username in current_room.admins %}
+                                <span class="admin-badge">Admin</span>
+                                {% endif %}
+
+                                {% if username in current_room.admins %}
+                                <div class="member-actions">
+                                    {% if member.username not in current_room.admins %}
+                                    <button class="action-btn action-sm prom-btn"
+                                        onclick="promoteMember('{{ current_room_id }}', '{{ member.username }}')">Make
+                                        Admin</button>
+                                    {% endif %}
+
+                                    {% if member.username != username and member.username != current_room.creator %}
+                                    <button class="action-btn action-sm kick-btn"
+                                        onclick="kickMember('{{ current_room_id }}', '{{ member.username }}')">Kick</button>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="input-area">
+                <input id="message" type="text" placeholder="Type a message..." autocomplete="off">
+                <button id="send-btn">Send</button>
+            </div>
         </div>
+    </div>
 
-        <!-- Input Section -->
-        <div class="input-area">
-            <input id="message" type="text" placeholder="Type a message..." />
-            <button onclick="sendMessage()">Send</button>
-        </div>
-
-        <!-- Room List Section -->
-        <!-- <ul>
-            {% for room in rooms %}
-                <li class="{% if room[0] == current_room_id %}active-room{% else %}inactive-room{% endif %}">
-                    <a href="/join_room/{{ room[0] }}">
-                        {{ room[1] }} <--Room Name -->
-                    <!-- </a> -->
-                <!-- </li> -->
-            <!-- {% endfor %} -->
-        <!-- </ul>  -->
-        <ul>
-            {% for room in rooms %}
-                <li class="{% if room[0] == current_room_id %}active-room{% else %}inactive-room{% endif %}">
-                    <a href="{% if session.logged_in %}/join_room/{{ room[0] }}{% else %}/login{% endif %}">
-                        {{ room[1] }} <!-- Room Name -->
-                    </a>
-                </li>
-            {% endfor %}
-        </ul>
-        
-
-        <!-- Profile Update Modal -->
-        <div id="profile-modal" class="modal">
-            <form id="profile-form">
-                <label for="username">Username:</label>
-                <input type="text" id="username" required />
-
-                <label for="dp">Profile Picture URL:</label>
-                <input type="url" id="dp" />
-
-                <button type="submit">Save</button>
-            </form>
+    <!-- Custom Confirmation Modal -->
+    <div id="delete-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3>Delete Room?</h3>
+            <p>This action cannot be undone. All messages in this room will be permanently lost.</p>
+            <div class="modal-actions">
+                <button class="cancel-btn action-btn" onclick="closeDeleteModal()">Cancel</button>
+                <button id="confirm-delete-btn" class="confirm-btn action-btn">Delete Room</button>
+            </div>
         </div>
     </div>
 
     <!-- JavaScript -->
     <script src="/static/script.js"></script>
 </body>
+
 </html>

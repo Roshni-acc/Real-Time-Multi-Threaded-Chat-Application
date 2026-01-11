@@ -1,12 +1,8 @@
-DATABASE_CONFIG = {
-    "host": "localhost",
-    "user": "root",
-    "password": "",
-    "database": "chat_application"
-}
-
 import os
 from dotenv import load_dotenv
+
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+DATABASE_NAME = "chat_application"
 
 # Load environment variables from .env file
 load_dotenv()

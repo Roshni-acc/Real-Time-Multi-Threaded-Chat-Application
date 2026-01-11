@@ -1,19 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <title>Create Room</title>
-    <link rel="stylesheet" href="/static/styles-dark.css">
+    <title>Create Room - Chat App</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 </head>
+
 <body>
-    <div class="container">
-        <h2>Create a Chat Room</h2>
-        <form action="/create_room" method="POST">
-            <input type="text" name="room_name" placeholder="Enter Room Name" required>
+    <div class="form-container">
+        <h1>Create Room</h1>
+        <p class="subtitle">Start a new conversation with your team</p>
+        <form id="create-room-form" action="/create_room" method="POST" novalidate>
+            <div class="form-group">
+                <label for="room_name">Room Name</label>
+                <input type="text" name="room_name" placeholder="e.g. Design Team" required>
+                <span class="error-text"></span>
+            </div>
             <button type="submit">Create Room</button>
         </form>
-        <div style="text-align: center; margin-top: 15px;">
-            <a href="/chat">Back to Chat</a>
+        <div style="text-align: center; margin-top: 1.5rem;">
+            <a href="/chat" class="auth-footer">Back to Chat</a>
         </div>
     </div>
+    <script src="/static/script.js"></script>
 </body>
+
 </html>
