@@ -333,6 +333,8 @@ body.dark-mode .login-container {
     flex: 1;
     overflow: hidden;
     background: #181818;
+    min-height: 0;
+    /* Important to allowed shrinking */
 }
 
 .chat-box {
@@ -352,6 +354,8 @@ body.dark-mode .login-container {
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    overflow-y: auto;
+    /* Handle many members */
 }
 
 .member-sidebar h3 {

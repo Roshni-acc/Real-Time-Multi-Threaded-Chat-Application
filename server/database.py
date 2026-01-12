@@ -61,8 +61,14 @@ def create_room(room_name, room_code, creator_username):
         "created_at": datetime.utcnow()
     }
     res = db.rooms.insert_one(room_data)
+    
+    # Generate current time in IST for the message text
+    import pytz
+    ist_now = datetime.utcnow().replace(tzinfo=pytz.utc).astimezone(pytz.timezone('Asia/Kolkata'))
+    time_str = ist_now.strftime("%d-%m-%Y %H:%M")
+
     # Save a system join message for the creator
-    save_message("System", f"{creator_username} created the room and joined.", str(res.inserted_id), message_type="system")
+    save_message("System", f"{creator_username} created the group - {room_name} on {time_str}", str(res.inserted_id), message_type="system")
     return res
 
 # Function to get all chat rooms for a specific user
