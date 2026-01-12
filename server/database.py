@@ -32,12 +32,14 @@ def login_user(username_or_email):
     return user
 
 # Function to store messages in the database
-def save_message(sender, message, room_id):
+def save_message(sender, message, room_id, message_type="text", file_info=None):
     db = get_db()
     message_data = {
         "sender": sender,
         "message": message,
         "room_id": room_id,
+        "message_type": message_type, # text, system, file
+        "file_info": file_info, # {filename: "", url: ""}
         "timestamp": datetime.utcnow()
     }
     return db.messages.insert_one(message_data)
@@ -58,7 +60,10 @@ def create_room(room_name, room_code, creator_username):
         "members": [creator_username],
         "created_at": datetime.utcnow()
     }
-    return db.rooms.insert_one(room_data)
+    res = db.rooms.insert_one(room_data)
+    # Save a system join message for the creator
+    save_message("System", f"{creator_username} created the room and joined.", str(res.inserted_id), message_type="system")
+    return res
 
 # Function to get all chat rooms for a specific user
 def get_rooms(username):

@@ -15,6 +15,7 @@ from server.config import (
 )
 from flask_mail import Mail, Message
 from itsdangerous import URLSafeTimedSerializer
+from server.calls import register_call_events
 
 # Flask app configuration
 app = Flask(__name__, template_folder="client/ui/templates", static_folder="client/ui/static")
@@ -33,6 +34,7 @@ app.config['MAIL_DEFAULT_SENDER'] = MAIL_DEFAULT_SENDER
 mail = Mail(app)
 serializer = URLSafeTimedSerializer(SECRET_KEY)
 socketio = SocketIO(app)
+register_call_events(socketio)
 
 @app.template_filter('to_ist')
 def to_ist(dt):
@@ -249,6 +251,12 @@ def join_room_by_code_route():
         
         add_user_to_room(room_code, username)
         session['room_id'] = str(room['_id'])
+        
+        # ONE-TIME JOIN MESSAGE: Persistent in database
+        join_msg = f"{username} has joined the chat."
+        save_message("System", join_msg, str(room['_id']), message_type="system")
+        socketio.emit("message", {"username": "System", "message": join_msg, "message_type": "system"}, room=str(room['_id']))
+
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return api_response(True, f"Successfully joined {room['room_name']}!", {"room_id": str(room['_id']), "redirect": url_for('chat')})
         return redirect(url_for('chat'))
@@ -274,6 +282,9 @@ def leave_room_route_logic(room_id):
     }, room=room_id)
     
     session.pop('room_id', None)
+    
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return api_response(True, "You have left the room.", {"redirect": url_for('chat')})
     return redirect(url_for('chat'))
 
 @app.route('/delete_room/<room_id>')
@@ -486,6 +497,38 @@ def upload_dp():
     return api_response(False, "Oops! Something went wrong while saving your photo. Please try again."), 500
 
 
+@app.route('/upload_chat_file', methods=['POST'])
+def upload_chat_file():
+    if not session.get('logged_in'):
+        return api_response(False, "Unauthorized"), 401
+
+    if 'file' not in request.files:
+        return api_response(False, "No file provided."), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return api_response(False, "No file selected."), 400
+
+    if file:
+        filename = secure_filename(file.filename)
+        # Ensure unique filename
+        import uuid
+        unique_filename = f"{uuid.uuid4().hex}_{filename}"
+        
+        chat_files_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'chat_files')
+        if not os.path.exists(chat_files_dir):
+            os.makedirs(chat_files_dir)
+            
+        filepath = os.path.join(chat_files_dir, unique_filename)
+        file.save(filepath)
+
+        return api_response(True, "File uploaded successfully!", {
+            "filename": filename,
+            "url": f"/static/uploads/chat_files/{unique_filename}"
+        })
+    
+    return api_response(False, "Failed to upload file."), 500
+
 ### ---- SOCKET.IO EVENTS ---- ###
 
 @socketio.on("join")
@@ -497,11 +540,9 @@ def handle_join(data):
     room = data.get("room") # This is room_id
     if room:
         join_room(room)
-        emit("message", {
-            "username": "System",
-            "message": f"{username} has joined the room."
-        }, room=room)
-        print(f"User {username} joined room {room}")
+        # REMOVED: Automatic join message emission on every socket connection
+        # Join messages are now handled once in the /join_room_by_code_route
+        print(f"User {username} joined room socket {room}")
 
 
 @socketio.on("message")
@@ -509,17 +550,25 @@ def handle_message(data):
     try:
         username = session.get('username')
         room_id = session.get('room_id')
-        message = data.get('message')
+        message = data.get('message', '')
+        message_type = data.get('message_type', 'text')
+        file_info = data.get('file_info')
         dp = session.get('dp')
 
-        if not all([username, room_id, message]):
+        if not username or not room_id:
             return
 
         # Insert the message into the database
-        save_message(username, message, room_id)
+        save_message(username, message, room_id, message_type=message_type, file_info=file_info)
 
         # Emit the message to the room
-        chat_entry = {"username": username, "dp": dp, "message": message}
+        chat_entry = {
+            "username": username, 
+            "dp": dp, 
+            "message": message, 
+            "message_type": message_type,
+            "file_info": file_info
+        }
         socketio.emit("message", chat_entry, room=room_id)
     except Exception as e:
         print(f"Error while handling message: {e}")

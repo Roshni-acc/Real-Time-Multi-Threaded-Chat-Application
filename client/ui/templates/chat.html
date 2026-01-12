@@ -6,6 +6,8 @@
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+
     <script>
         const currentUsername = "{{ username }}";
     </script>
@@ -73,14 +75,22 @@
                         <button onclick="deleteRoom('{{ current_room_id }}')" class="delete-btn action-btn">Delete
                             Room</button>
                         {% else %}
-                        <button onclick="location.href='/leave_room/{{ current_room_id }}'"
-                            class="leave-btn action-btn">Leave Room</button>
+                        <button onclick="leaveRoom('{{ current_room_id }}')" class="leave-btn action-btn">Leave
+                            Room</button>
                         {% endif %}
                         {% endif %}
                         <img src="{{ dp }}" alt="DP" class="header-dp" onclick="window.location.href='profile'">
                         <div class="brand">
                             <span>{{ username }}</span>
                         </div>
+                        {% if current_room %}
+                        <div class="call-actions">
+                            <button onclick="startCall('voice')" class="action-btn call-btn"
+                                title="Voice Call">📞</button>
+                            <button onclick="startCall('video')" class="action-btn call-btn"
+                                title="Video Call">📹</button>
+                        </div>
+                        {% endif %}
                         <button id="theme-toggle">🌙</button>
                         <button onclick="window.location.href='/logout'" class="logout-btn">Logout</button>
                     </div>
@@ -93,15 +103,32 @@
                     <div class="system-message">Select a room to start chatting</div>
                     {% endif %}
                     {% for message in messages %}
-                    <div class="message-wrapper">
+                    <div class="message-wrapper {% if message.message_type == 'system' %}system-wrapper{% endif %}">
+                        {% if message.message_type == 'system' %}
+                        <div class="system-message">{{ message.message }}</div>
+                        {% else %}
                         <div class="message-header">
                             <img src="/static/uploads/{{ message.profile_photo }}" alt="DP" class="msg-dp">
                             <strong>{{ message.sender }}</strong>
                         </div>
-                        <div class="message-bubble">
+                        <div class="message-bubble {% if message.message_type == 'sticker' %}sticker-bubble{% endif %}">
+                            {% if message.message_type == 'file' %}
+                            <div class="file-message">
+                                📎 <a href="{{ message.file_info.url }}" target="_blank" class="file-link">{{
+                                    message.file_info.filename }}</a>
+                            </div>
+                            {% elif message.message_type == 'sticker' %}
+                            <img src="{{ message.message }}" class="sticker-message">
+                            {% elif message.message_type == 'call' %}
+                            <div class="call-message">
+                                {% if 'video' in message.message %}📹{% else %}📞{% endif %} {{ message.message }}
+                            </div>
+                            {% else %}
                             <p>{{ message.message }}</p>
+                            {% endif %}
                             <span class="timestamp">{{ message.timestamp|to_ist if message.timestamp else '' }}</span>
                         </div>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>
@@ -120,8 +147,18 @@
                                 <span class="admin-badge">Admin</span>
                                 {% endif %}
 
+                                {% if member.username != username %}
+                                <div class="member-call-actions">
+                                    <button class="call-icon-btn" onclick="startCall('voice', '{{ member.username }}')"
+                                        title="Voice Call">📞</button>
+                                    <button class="call-icon-btn" onclick="startCall('video', '{{ member.username }}')"
+                                        title="Video Call">📹</button>
+                                </div>
+                                {% endif %}
+
                                 {% if username in current_room.admins %}
                                 <div class="member-actions">
+
                                     {% if member.username not in current_room.admins %}
                                     <button class="action-btn action-sm prom-btn"
                                         onclick="promoteMember('{{ current_room_id }}', '{{ member.username }}')">Make
@@ -143,20 +180,65 @@
             </div>
 
             <div class="input-area">
+                <div class="input-actions-left">
+                    <button id="emoji-btn" title="Add Emoji">😊</button>
+                    <button id="attach-btn" title="Attach File">📎</button>
+                    <input type="file" id="file-input" style="display: none;" accept=".pdf,.doc,.docx,.txt,.jpg,.png">
+                </div>
+                <div class="emoji-picker-container" id="emoji-picker" style="display: none;">
+                    <div class="emoji-picker-header">
+                        <button class="picker-tab active" onclick="switchPickerTab('emojis')">Emoji</button>
+                        <button class="picker-tab" onclick="switchPickerTab('stickers')">Stickers</button>
+                    </div>
+                    <div id="emoji-list" class="picker-grid">
+                        <span>😀</span><span>😂</span><span>😍</span><span>🤔</span><span>😎</span><span>👍</span><span>❤️</span><span>🙌</span><span>🎉</span><span>🔥</span><span>✨</span><span>😜</span><span>😇</span><span>😢</span><span>😡</span><span>😱</span>
+                    </div>
+                    <div id="sticker-list" class="picker-grid" style="display: none;">
+                        <!-- Stickers will be loaded via JS -->
+                    </div>
+                </div>
                 <input id="message" type="text" placeholder="Type a message..." autocomplete="off">
                 <button id="send-btn">Send</button>
             </div>
         </div>
     </div>
 
-    <!-- Custom Confirmation Modal -->
-    <div id="delete-modal" class="modal-overlay">
+    <!-- Call Overlay -->
+    <div id="call-overlay" class="modal-overlay">
+        <div class="call-container">
+            <div id="call-status" class="call-status-overlay">
+                <span id="call-status-text">Calling...</span>
+            </div>
+            <div id="video-grid"></div>
+            <div class="call-controls">
+                <button id="toggle-mic" class="control-btn">🎙️</button>
+                <button id="toggle-video" class="control-btn">📹</button>
+                <button id="end-call-btn" class="control-btn end-call">📞</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Incoming Call Modal -->
+    <div id="incoming-call-modal" class="modal-overlay">
         <div class="modal-content">
-            <h3>Delete Room?</h3>
-            <p>This action cannot be undone. All messages in this room will be permanently lost.</p>
+            <h3 id="caller-name">Incoming Call...</h3>
+            <p id="call-type-text">Someone is calling you</p>
             <div class="modal-actions">
-                <button class="cancel-btn action-btn" onclick="closeDeleteModal()">Cancel</button>
-                <button id="confirm-delete-btn" class="confirm-btn action-btn">Delete Room</button>
+                <button class="confirm-btn action-btn bg-success" id="accept-call-btn">Accept</button>
+                <button class="confirm-btn action-btn bg-danger" id="reject-call-btn">Reject</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Confirmation Modal -->
+
+    <div id="confirm-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 id="confirm-modal-title">Confirm Action</h3>
+            <p id="confirm-modal-message">Are you sure you want to proceed?</p>
+            <div class="modal-actions">
+                <button class="cancel-btn action-btn" onclick="closeConfirmModal()">Cancel</button>
+                <button id="confirm-modal-btn" class="confirm-btn action-btn">Confirm</button>
             </div>
         </div>
     </div>

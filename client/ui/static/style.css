@@ -104,6 +104,42 @@ body.dark-mode {
     }
 }
 
+/* System Message improvements */
+.system-wrapper {
+    max-width: 100%;
+    align-items: center;
+    width: 100%;
+}
+
+.system-message {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    color: #94a3b8;
+    text-align: center;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.file-message {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+}
+
+.file-link {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.file-link:hover {
+    text-decoration: underline;
+}
+
 /* Glassmorphism Container */
 .chat-container {
     width: 95vw;
@@ -437,13 +473,63 @@ body.dark-mode .login-container {
     margin-top: 4px;
 }
 
-/* Input Area */
+/* Input Area Extensions */
 .input-area {
     padding: 1.5rem;
     background: #1c1c1c;
     border-top: 1px solid var(--border-rgba);
     display: flex;
     gap: 1rem;
+    position: relative;
+}
+
+.input-actions-left {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.input-actions-left button {
+    padding: 0;
+    width: 42px;
+    height: 42px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-rgba);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+}
+
+.emoji-picker-container {
+    position: absolute;
+    bottom: 80px;
+    left: 20px;
+    background: var(--card-light);
+    border: 1px solid var(--border-rgba);
+    border-radius: 12px;
+    padding: 10px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    width: 250px;
+}
+
+.emoji-list {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.emoji-list span {
+    font-size: 1.5rem;
+    cursor: pointer;
+    text-align: center;
+    padding: 5px;
+    border-radius: 8px;
+    transition: background 0.2s;
+}
+
+.emoji-list span:hover {
+    background: rgba(255, 255, 255, 0.1);
 }
 
 /* Forms & Dashboard Elements */
@@ -717,4 +803,219 @@ h1 {
 .cancel-btn {
     background: rgba(255, 255, 255, 0.1);
     color: white;
+}
+
+/* Call UI */
+.call-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-right: 1rem;
+}
+
+.call-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-rgba);
+    padding: 8px 12px;
+    font-size: 1.1rem;
+}
+
+.call-btn:hover {
+    background: var(--primary);
+    border-color: var(--primary);
+}
+
+.call-container {
+    background: #000;
+    width: 90vw;
+    height: 80vh;
+    border-radius: 24px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.call-status-overlay {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.6);
+    padding: 10px 20px;
+    border-radius: 20px;
+    z-index: 10;
+    color: white;
+    font-weight: 500;
+}
+
+#call-status-text::after {
+    content: "...";
+    animation: dots 1.5s infinite;
+}
+
+@keyframes dots {
+    0% {
+        content: ".";
+    }
+
+    33% {
+        content: "..";
+    }
+
+    66% {
+        content: "...";
+    }
+}
+
+#video-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
+    padding: 1rem;
+    align-items: center;
+    justify-items: center;
+}
+
+#video-grid video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 16px;
+    background: #1a1a1a;
+}
+
+.call-controls {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 1.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    padding: 1rem 2rem;
+    border-radius: 40px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.control-btn {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.control-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.control-btn.end-call {
+    background: #ef4444;
+    transform: rotate(135deg);
+}
+
+.control-btn.end-call:hover {
+    background: #dc2626;
+}
+
+.bg-success {
+    background-color: #10b981 !important;
+}
+
+.bg-danger {
+    background-color: #ef4444 !important;
+}
+
+/* Picker Tabs */
+.emoji-picker-header {
+    display: flex;
+    padding: 10px;
+    border-bottom: 1px solid var(--border-rgba);
+    gap: 10px;
+}
+
+.picker-tab {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    padding: 5px 10px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.picker-tab.active {
+    color: var(--primary);
+    border-bottom: 2px solid var(--primary);
+}
+
+.picker-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    padding: 15px;
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.sticker-item {
+    width: 100%;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.sticker-item:hover {
+    transform: scale(1.1);
+}
+
+.sticker-message {
+    max-width: 150px;
+    border-radius: 12px;
+}
+
+.sticker-bubble {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+}
+
+.call-message {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 500;
+    color: var(--primary);
+}
+
+.member-call-actions {
+    display: flex;
+    gap: 8px;
+    margin-right: 10px;
+}
+
+.call-icon-btn {
+    background: none;
+    border: none;
+    font-size: 1rem;
+    padding: 2px;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.call-icon-btn:hover {
+    opacity: 1;
+    transform: scale(1.2);
+}
+
+.member-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between !important;
 }
