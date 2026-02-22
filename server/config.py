@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env file at the very beginning
+
 load_dotenv()
 
 # Database Configuration
