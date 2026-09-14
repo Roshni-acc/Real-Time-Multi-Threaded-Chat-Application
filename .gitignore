@@ -10,3 +10,5 @@ instance/
 .DS_Store
 static/uploads/*
 !static/uploads/.gitkeep
+client/frontend/node_modules/
+client/frontend/dist/

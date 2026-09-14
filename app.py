@@ -1,27 +1,55 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
-from flask_socketio import SocketIO, join_room, leave_room, emit
+import uuid
+from datetime import datetime, timezone, timedelta
+from flask import (
+    Flask, render_template, request, redirect, url_for,
+    session, jsonify, send_from_directory
+)
+from flask_cors import CORS
+from flask_socketio import SocketIO, join_room
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+
 from server.database import (
-    register_user, login_user, save_message, get_chat_history, 
+    register_user, login_user, save_message, get_chat_history,
     create_room, get_rooms, get_room_by_code, update_profile_photo,
     add_user_to_room, update_user_details, update_room_name,
-    promote_to_admin, remove_user_from_room, update_user_password
+    promote_to_admin, remove_user_from_room, update_user_password,
+    get_room_by_id, get_room_members, delete_room
 )
 from server.config import (
-    SECRET_KEY, MAIL_SERVER, MAIL_PORT, MAIL_USE_TLS, 
+    SECRET_KEY, MAIL_SERVER, MAIL_PORT, MAIL_USE_TLS,
     MAIL_USERNAME, MAIL_PASSWORD, MAIL_DEFAULT_SENDER
 )
 from flask_mail import Mail, Message
 from itsdangerous import URLSafeTimedSerializer
 from server.calls import register_call_events
+from server.ai_bot import handle_ai_bot_query, AI_BOT_NAME, AI_BOT_DP
 
 # Flask app configuration
-app = Flask(__name__, template_folder="client/ui/templates", static_folder="client/ui/static")
+FRONTEND_DIST = os.path.join(
+    os.path.dirname(__file__), 'client', 'frontend', 'dist'
+)
+
+app = Flask(
+    __name__,
+    template_folder="client/ui/templates",
+    static_folder="client/ui/static",
+    static_url_path="/static"
+)
+
 app.config['SECRET_KEY'] = SECRET_KEY
-UPLOAD_FOLDER = 'client/ui/static/uploads'
+UPLOAD_FOLDER = os.path.join(
+    app.root_path, 'client', 'ui', 'static', 'uploads'
+)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = False
+
+CORS(app, supports_credentials=True, origins=[
+    "http://localhost:5173", "http://127.0.0.1:5173",
+    "http://localhost:5001", "http://127.0.0.1:5001"
+])
 
 # Email Configuration
 app.config['MAIL_SERVER'] = MAIL_SERVER
@@ -33,18 +61,25 @@ app.config['MAIL_DEFAULT_SENDER'] = MAIL_DEFAULT_SENDER
 
 mail = Mail(app)
 serializer = URLSafeTimedSerializer(SECRET_KEY)
-socketio = SocketIO(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
 register_call_events(socketio)
+
 
 @app.template_filter('to_ist')
 def to_ist(dt):
-    if not dt: return ""
-    from datetime import timedelta
-    # Add 5 hours and 30 minutes for IST
+    if not dt:
+        return ""
     ist_dt = dt + timedelta(hours=5, minutes=30)
     return ist_dt.strftime('%H:%M')
 
-### ---- UTILS ---- ###
+
+# ---- UTILS ---- #
+
+def get_req_data():
+    if request.is_json:
+        return request.get_json() or {}
+    return request.form or {}
+
 
 def api_response(status, message, data=None):
     return jsonify({
@@ -53,472 +88,726 @@ def api_response(status, message, data=None):
         "data": data or {}
     })
 
-### ---- ROUTES ---- ###
+
+def format_user_data(user):
+    if not user:
+        return None
+    dp = user.get('profile_photo', '2.jpg')
+    if not dp.startswith('/static/'):
+        dp = f"/static/uploads/{dp}"
+    return {
+        "username": user.get('username'),
+        "full_name": user.get('full_name'),
+        "email": user.get('email'),
+        "dp": dp
+    }
+
+
+def serve_react_index():
+    index_path = os.path.join(FRONTEND_DIST, 'index.html')
+    if os.path.exists(index_path):
+        return send_from_directory(FRONTEND_DIST, 'index.html')
+    return None
+
+
+def handle_register_logic(data):
+    full_name = data.get('full_name', '').strip()
+    email = data.get('email', '').strip()
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+    confirm_password = data.get('confirm_password', '')
+
+    if not all([full_name, email, username, password, confirm_password]):
+        return api_response(
+            False, "All fields are required. Please fill in everything."
+        ), 400
+
+    if password != confirm_password:
+        return api_response(
+            False, "Passwords do not match. Please re-enter."
+        ), 400
+
+    if len(password) < 6:
+        return api_response(
+            False, "Security check: Password must be at least 6 characters."
+        ), 400
+
+    if "@" not in email or "." not in email:
+        return api_response(False, "Please enter a valid email address."), 400
+
+    if login_user(username):
+        return api_response(
+            False, "This username is already taken. Try another?"
+        ), 400
+
+    if login_user(email):
+        return api_response(
+            False, "An account with this email already exists."
+        ), 400
+
+    hashed_password = generate_password_hash(password)
+    default_dp = "2.jpg"
+
+    try:
+        register_user(username, hashed_password, full_name, email, default_dp)
+    except Exception:
+        return api_response(
+            False, "Registration failed due to a server error."
+        ), 500
+
+    session['logged_in'] = True
+    session['username'] = username
+    session['full_name'] = full_name
+    session['dp'] = f"/static/uploads/{default_dp}"
+
+    user_info = {
+        "username": username,
+        "full_name": full_name,
+        "email": email,
+        "dp": session['dp']
+    }
+
+    return api_response(
+        True, "Registration successful!",
+        {"user": user_info, "redirect": "/chat"}
+    ), 200
+
+
+def handle_login_logic(data):
+    identifier = data.get('username', '').strip() or data.get(
+        'identifier', ''
+    ).strip()
+    password = data.get('password', '')
+
+    if not identifier or not password:
+        return api_response(
+            False, "Username/Email and Password are required."
+        ), 400
+
+    user = login_user(identifier)
+    if user:
+        if check_password_hash(user['password_hash'], password):
+            session['logged_in'] = True
+            session['username'] = user['username']
+            session['full_name'] = user['full_name']
+            session['dp'] = f"/static/uploads/{user['profile_photo']}"
+
+            user_info = format_user_data(user)
+            return api_response(
+                True, "Welcome back! Login successful.",
+                {"user": user_info, "redirect": "/chat"}
+            ), 200
+        else:
+            return api_response(
+                False, "Incorrect password. Please try again."
+            ), 401
+    else:
+        return api_response(
+            False, "No account found with this username/email."
+        ), 404
+
+
+# ---- AUTH API & PAGE ROUTES ---- #
 
 @app.route('/')
-def default():
+def default_route():
+    react = serve_react_index()
+    if react:
+        return react
     if session.get('logged_in'):
-        return redirect(url_for('chat'))
-    return redirect(url_for('login'))
+        return redirect(url_for('chat_page'))
+    return redirect(url_for('login_page'))
+
+
+@app.route('/api/auth/me', methods=['GET'])
+def api_auth_me():
+    if session.get('logged_in') and session.get('username'):
+        username = session.get('username')
+        user = login_user(username)
+        if user:
+            return api_response(True, "Authenticated", {
+                "user": format_user_data(user),
+                "active_room_id": session.get('room_id')
+            })
+    return api_response(False, "Not authenticated"), 401
+
+
+@app.route('/api/auth/register', methods=['POST'])
+def api_auth_register():
+    res, status_code = handle_register_logic(get_req_data())
+    return res, status_code
 
 
 @app.route('/register', methods=['GET', 'POST'])
-def register():
+def register_page():
     if request.method == 'POST':
-        full_name = request.form.get('full_name')
-        email = request.form.get('email')
-        username = request.form.get('username')
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
-
-        # Validations
-        if not all([full_name, email, username, password, confirm_password]):
-            return api_response(False, "All fields are required. Please fill in everything."), 400
-        
-        if password != confirm_password:
-            return api_response(False, "Passwords do not match. Please re-enter."), 400
-        
-        if len(password) < 6:
-            return api_response(False, "Security check: Password must be at least 6 characters."), 400
-
-        if "@" not in email or "." not in email:
-            return api_response(False, "Please enter a valid email address."), 400
-
-        # Check for existing user specifically
-        db_user = login_user(username)
-        if db_user:
-            return api_response(False, "This username is already taken. Try another?"), 400
-        
-        db_email = login_user(email)
-        if db_email:
-            return api_response(False, "An account with this email already exists."), 400
-
-        hashed_password = generate_password_hash(password)
-        default_dp = "2.jpg"
-
-        try:
-            register_user(username, hashed_password, full_name, email, default_dp)
-        except Exception as e:
-            return api_response(False, "Registration failed due to a server error. Please try again later."), 500
-
-        session['logged_in'] = True
-        session['username'] = username
-        session['full_name'] = full_name
-        session['dp'] = f"/static/uploads/{default_dp}"
-        
-        # Determine if it's an AJAX request or form submission
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return api_response(True, "Registration successful!", {"redirect": url_for('chat')})
-        return redirect(url_for('chat'))
-        
+        res, status_code = handle_register_logic(get_req_data())
+        if status_code == 200 and not request.is_json:
+            return redirect(url_for('chat_page'))
+        return res, status_code
+    react = serve_react_index()
+    if react:
+        return react
     return render_template('register.html')
 
 
+@app.route('/api/auth/login', methods=['POST'])
+def api_auth_login():
+    res, status_code = handle_login_logic(get_req_data())
+    return res, status_code
+
+
 @app.route('/login', methods=['GET', 'POST'])
-def login():
+def login_page():
     if request.method == 'POST':
-        identifier = request.form['username'] # Can be username or email
-        password = request.form['password']
-
-        user = login_user(identifier)
-
-        if user:
-            if check_password_hash(user['password_hash'], password):
-                session['logged_in'] = True
-                session['username'] = user['username']
-                session['full_name'] = user['full_name']
-                session['dp'] = f"/static/uploads/{user['profile_photo']}"
-
-                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                    return api_response(True, "Welcome back! Login successful.", {"redirect": url_for('chat')})
-                return redirect(url_for('chat'))
-            else:
-                return api_response(False, "Incorrect password. Please try again."), 401
-        else:
-            return api_response(False, "No account found with this username/email."), 404
-
+        res, status_code = handle_login_logic(get_req_data())
+        if status_code == 200 and not request.is_json:
+            return redirect(url_for('chat_page'))
+        return res, status_code
+    react = serve_react_index()
+    if react:
+        return react
     return render_template('login.html')
 
 
-
-@app.route('/chat')
-def chat():
-    if not session.get('logged_in'):
-        return redirect(url_for('login'))
-
-    username = session.get('username')
-    dp = session.get('dp')
-
-    # Fetch rooms where user is a member
-    rooms = get_rooms(username)
-    for r in rooms:
-        r['_id'] = str(r['_id'])
-
-    # Fetch chat history for the current room
-    room_id = session.get('room_id')
-    
-    # If no room selected, but there are rooms, default to the first one
-    if not room_id and rooms:
-        room_id = rooms[0]['_id']
-        session['room_id'] = room_id
-    
-    messages = []
-    members = []
-    current_room = None
-    if room_id:
-        from server.database import get_room_by_id, get_room_members, get_chat_history
-        current_room = get_room_by_id(room_id)
-        if not current_room:
-            session.pop('room_id', None)
-            return redirect(url_for('chat'))
-            
-        current_room['_id'] = str(current_room['_id'])
-        if username not in current_room.get('members', []):
-            session.pop('room_id', None)
-            return redirect(url_for('chat'))
-
-        members = get_room_members(current_room.get('members', []))
-        messages = get_chat_history(room_id)
-        # Convert ObjectId to string for messages
-        for msg in messages:
-            msg['_id'] = str(msg['_id'])
-            # Fetch sender's profile photo
-            user = login_user(msg['sender'])
-            msg['profile_photo'] = user['profile_photo'] if user else '2.jpg'
-
-    return render_template('chat.html', 
-                         username=username, 
-                         dp=dp, 
-                         messages=messages, 
-                         rooms=rooms, 
-                         current_room_id=str(room_id) if room_id else None,
-                         members=members,
-                         current_room=current_room)
+@app.route('/api/auth/logout', methods=['POST', 'GET'])
+def api_auth_logout():
+    session.clear()
+    return api_response(True, "Logged out successfully")
 
 
-@app.route('/create_room', methods=['GET', 'POST'])
-def create_room_route():
-    if not session.get('logged_in'):
-        return redirect(url_for('login'))
-
-    if request.method == 'POST':
-        room_name = request.form.get('room_name', '').strip()
-        username = session['username']
-        
-        if not room_name or len(room_name) < 3:
-            return api_response(False, "Room name must be at least 3 characters long."), 400
-            
-        import uuid
-        room_code = str(uuid.uuid4())[:8].upper()
-        
-        try:
-            res = create_room(room_name, room_code, username)
-            session['room_id'] = str(res.inserted_id)
-            
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return api_response(True, f"Room '{room_name}' created successfully!", {
-                    "room_id": str(res.inserted_id), 
-                    "room_code": room_code,
-                    "redirect": url_for('chat')
-                })
-            return redirect(url_for('chat'))
-        except Exception as e:
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return api_response(False, "Failed to create room. Please try a different name."), 500
-            return "Error creating room", 500
-    
-    return render_template('create_room.html')
+@app.route('/logout')
+def logout_page():
+    session.clear()
+    return redirect(url_for('login_page'))
 
 
-@app.route('/join_room_by_code', methods=['POST'])
-def join_room_by_code_route():
+# ---- ROOM API ROUTES ---- #
+
+@app.route('/api/rooms', methods=['GET'])
+def api_get_rooms():
     if not session.get('logged_in'):
         return api_response(False, "Unauthorized"), 401
 
-    room_code = request.form.get('room_code').upper()
+    username = session.get('username')
+    rooms = get_rooms(username)
+    for r in rooms:
+        r['_id'] = str(r['_id'])
+        if 'created_at' in r and r['created_at']:
+            r['created_at'] = r['created_at'].isoformat()
+    return api_response(True, "Rooms retrieved", {
+        "rooms": rooms,
+        "active_room_id": session.get('room_id')
+    })
+
+
+@app.route('/api/rooms/<room_id>', methods=['GET'])
+def api_get_room_detail(room_id):
+    if not session.get('logged_in'):
+        return api_response(False, "Unauthorized"), 401
+
+    username = session.get('username')
+    current_room = get_room_by_id(room_id)
+    if not current_room:
+        return api_response(False, "Room not found"), 404
+
+    current_room['_id'] = str(current_room['_id'])
+    if username not in current_room.get('members', []):
+        return api_response(False, "Not a member of this room"), 403
+
+    session['room_id'] = room_id
+
+    members = get_room_members(current_room.get('members', []))
+    for m in members:
+        if '_id' in m:
+            m['_id'] = str(m['_id'])
+        dp = m.get('profile_photo', '2.jpg')
+        if not dp.startswith('/static/'):
+            dp = f"/static/uploads/{dp}"
+        m['dp'] = dp
+
+    messages = get_chat_history(room_id)
+    for msg in messages:
+        msg['_id'] = str(msg['_id'])
+        if 'timestamp' in msg and msg['timestamp']:
+            ist_dt = msg['timestamp'] + timedelta(hours=5, minutes=30)
+            msg['time_formatted'] = ist_dt.strftime('%H:%M')
+            msg['timestamp'] = msg['timestamp'].isoformat()
+
+        user = login_user(msg.get('sender', ''))
+        msg['profile_photo'] = user['profile_photo'] if user else '2.jpg'
+        dp = msg['profile_photo']
+        if not dp.startswith('/static/'):
+            dp = f"/static/uploads/{dp}"
+        msg['dp'] = dp
+
+    return api_response(True, "Room details", {
+        "room": current_room,
+        "members": members,
+        "messages": messages,
+        "is_admin": username in current_room.get('admins', []),
+        "is_creator": username == current_room.get('creator')
+    })
+
+
+@app.route('/api/rooms/<room_id>/select', methods=['POST'])
+def api_select_room(room_id):
+    if not session.get('logged_in'):
+        return api_response(False, "Unauthorized"), 401
+    session['room_id'] = room_id
+    return api_response(True, f"Room set to {room_id}")
+
+
+@app.route('/api/rooms/create', methods=['POST'])
+def api_create_room():
+    if not session.get('logged_in'):
+        return api_response(False, "Unauthorized"), 401
+
+    data = get_req_data()
+    room_name = data.get('room_name', '').strip()
+    username = session['username']
+
+    if not room_name or len(room_name) < 3:
+        return api_response(
+            False, "Room name must be at least 3 characters long."
+        ), 400
+
+    room_code = str(uuid.uuid4())[:8].upper()
+    try:
+        res = create_room(room_name, room_code, username)
+        room_id = str(res.inserted_id)
+        session['room_id'] = room_id
+        return api_response(True, f"Room '{room_name}' created successfully!", {
+            "room_id": room_id,
+            "room_code": room_code,
+            "redirect": "/chat"
+        })
+    except Exception:
+        return api_response(
+            False, "Failed to create room. Please try a different name."
+        ), 500
+
+
+@app.route('/create_room', methods=['GET', 'POST'])
+def create_room_page():
+    if not session.get('logged_in'):
+        return redirect(url_for('login_page'))
+
+    if request.method == 'POST':
+        data = get_req_data()
+        room_name = data.get('room_name', '').strip()
+        username = session['username']
+
+        if not room_name or len(room_name) < 3:
+            return api_response(
+                False, "Room name must be at least 3 characters long."
+            ), 400
+
+        room_code = str(uuid.uuid4())[:8].upper()
+        try:
+            res = create_room(room_name, room_code, username)
+            session['room_id'] = str(res.inserted_id)
+            return redirect(url_for('chat_page'))
+        except Exception:
+            return "Error creating room", 500
+
+    react = serve_react_index()
+    if react:
+        return react
+    return render_template('create_room.html')
+
+
+@app.route('/api/rooms/join', methods=['POST'])
+def api_join_room_by_code():
+    if not session.get('logged_in'):
+        return api_response(False, "Unauthorized"), 401
+
+    data = get_req_data()
+    room_code = data.get('room_code', '').strip().upper()
     if not room_code:
         return api_response(False, "Please enter a room code."), 400
 
     username = session['username']
     room = get_room_by_code(room_code)
-    
-    if room:
-        if username in room.get('members', []):
-            session['room_id'] = str(room['_id'])
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return api_response(True, "You are already a member! Opening room...", {"room_id": str(room['_id']), "redirect": url_for('chat')})
-            return redirect(url_for('chat'))
-        
-        add_user_to_room(room_code, username)
-        session['room_id'] = str(room['_id'])
-        
-        # ONE-TIME JOIN MESSAGE: Persistent in database
-        join_msg = f"{username} has joined the chat."
-        save_message("System", join_msg, str(room['_id']), message_type="system")
-        socketio.emit("message", {"username": "System", "message": join_msg, "message_type": "system"}, room=str(room['_id']))
 
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return api_response(True, f"Successfully joined {room['room_name']}!", {"room_id": str(room['_id']), "redirect": url_for('chat')})
-        return redirect(url_for('chat'))
+    if room:
+        room_id = str(room['_id'])
+        if username in room.get('members', []):
+            session['room_id'] = room_id
+            return api_response(
+                True, "You are already a member!",
+                {"room_id": room_id, "redirect": "/chat"}
+            )
+
+        add_user_to_room(room_code, username)
+        session['room_id'] = room_id
+
+        join_msg = f"{username} has joined the chat."
+        save_message("System", join_msg, room_id, message_type="system")
+        socketio.emit(
+            "message",
+            {"username": "System", "message": join_msg, "message_type": "system"},
+            room=room_id
+        )
+
+        return api_response(
+            True, f"Successfully joined {room['room_name']}!",
+            {"room_id": room_id, "redirect": "/chat"}
+        )
     else:
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return api_response(False, "Room code not found. Double-check your code?"), 404
-        return "Room not found", 404
+        return api_response(False, "Room code not found."), 404
+
+
+@app.route('/join_room_by_code', methods=['POST'])
+def join_room_by_code_page():
+    return api_join_room_by_code()
+
+
+@app.route('/api/rooms/<room_id>/leave', methods=['POST', 'GET'])
+def api_leave_room(room_id):
+    if not session.get('logged_in'):
+        return api_response(False, "Unauthorized"), 401
+
+    username = session['username']
+    remove_user_from_room(room_id, username)
+
+    socketio.emit("message", {
+        "username": "System",
+        "message": f"{username} has left the chat.",
+        "message_type": "system"
+    }, room=room_id)
+
+    if session.get('room_id') == room_id:
+        session.pop('room_id', None)
+
+    return api_response(True, "You have left the room.", {"redirect": "/chat"})
 
 
 @app.route('/leave_room/<room_id>')
-def leave_room_route_logic(room_id):
-    if not session.get('logged_in'):
-        return redirect(url_for('login'))
-    
-    username = session['username']
-    from server.database import remove_user_from_room
-    remove_user_from_room(room_id, username)
-    
-    # Notify room
-    socketio.emit("message", {
-        "username": "System",
-        "message": f"{username} has left the chat."
-    }, room=room_id)
-    
-    session.pop('room_id', None)
-    
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return api_response(True, "You have left the room.", {"redirect": url_for('chat')})
-    return redirect(url_for('chat'))
+def leave_room_page(room_id):
+    api_leave_room(room_id)
+    return redirect(url_for('chat_page'))
 
-@app.route('/delete_room/<room_id>')
-def delete_room_route_logic(room_id):
+
+@app.route('/api/rooms/<room_id>', methods=['DELETE'])
+def api_delete_room(room_id):
     if not session.get('logged_in'):
         return api_response(False, "Unauthorized"), 401
-    
+
     username = session['username']
-    from server.database import get_room_by_id, delete_room
     room = get_room_by_id(room_id)
-    
+
     if room and username in room.get('admins', []):
         room_name = room.get('room_name')
-        # Notify room deletion before removing data
-        socketio.emit("room_deleted", {"room_id": room_id, "message": f"Admin {username} has deleted the group '{room_name}'."}, room=room_id)
-        
+        socketio.emit(
+            "room_deleted",
+            {"room_id": room_id, "message": f"Admin {username} deleted group '{room_name}'."},
+            room=room_id
+        )
+
         delete_room(room_id)
-        session.pop('room_id', None)
-        return api_response(True, "Room deleted successfully!", {"redirect": url_for('chat')})
+        if session.get('room_id') == room_id:
+            session.pop('room_id', None)
+        return api_response(True, "Room deleted successfully!", {"redirect": "/chat"})
     else:
-        return api_response(False, "You do not have permission to delete this room."), 403
+        return api_response(
+            False, "You do not have permission to delete this room."
+        ), 403
+
+
+@app.route('/delete_room/<room_id>')
+def delete_room_page(room_id):
+    return api_delete_room(room_id)
+
 
 @app.route('/join_room/<room_id>')
-def join_room_route(room_id):
+def join_room_page(room_id):
     if not session.get('logged_in'):
-        return redirect(url_for('login'))
+        return redirect(url_for('login_page'))
 
     session['room_id'] = room_id
-    return redirect(url_for('chat'))
+    react = serve_react_index()
+    if react:
+        return react
+    return redirect(url_for('chat_page'))
 
 
-@app.route('/update_profile', methods=['POST'])
-def update_profile():
+@app.route('/api/profile', methods=['POST'])
+def api_update_profile():
     if not session.get('logged_in'):
         return api_response(False, "Unauthorized"), 401
-    
+
+    data = get_req_data()
     old_username = session['username']
-    new_username = request.form.get('username', old_username).strip()
-    new_full_name = request.form.get('full_name', session['full_name']).strip()
+    new_username = data.get('username', old_username).strip()
+    new_full_name = data.get('full_name', session.get('full_name', '')).strip()
 
     if not new_username or not new_full_name:
         return api_response(False, "Username and Full Name are required."), 400
 
-    # If username changed, check if new one exists
-    if new_username != old_username:
-        if login_user(new_username):
-            return api_response(False, "This username is already taken."), 400
+    if new_username != old_username and login_user(new_username):
+        return api_response(False, "This username is already taken."), 400
 
     try:
         update_user_details(old_username, new_username, new_full_name)
         session['username'] = new_username
         session['full_name'] = new_full_name
-        return api_response(True, "Profile updated successfully!", {"redirect": url_for('profile')})
-    except Exception as e:
+        return api_response(True, "Profile updated successfully!", {
+            "user": {
+                "username": new_username,
+                "full_name": new_full_name,
+                "dp": session.get('dp')
+            }
+        })
+    except Exception:
         return api_response(False, "Failed to update profile."), 500
 
-@app.route('/update_room_name/<room_id>', methods=['POST'])
-def update_room_name_route(room_id):
+
+@app.route('/update_profile', methods=['POST'])
+def update_profile_page():
+    return api_update_profile()
+
+
+@app.route('/api/rooms/<room_id>/rename', methods=['POST'])
+def api_update_room_name(room_id):
     if not session.get('logged_in'):
         return api_response(False, "Unauthorized"), 401
-    
+
     username = session['username']
-    from server.database import get_room_by_id
     room = get_room_by_id(room_id)
-    
+
     if not room or username not in room.get('admins', []):
-        return api_response(False, "You don't have permission to rename this room."), 403
-    
-    new_name = request.form.get('room_name', '').strip()
+        return api_response(
+            False, "You don't have permission to rename this room."
+        ), 403
+
+    data = get_req_data()
+    new_name = data.get('room_name', '').strip()
     if not new_name:
         return api_response(False, "Room name cannot be empty."), 400
-        
+
     update_room_name(room_id, new_name)
     return api_response(True, "Room name updated!", {"new_name": new_name})
 
-@app.route('/promote_member/<room_id>/<member_username>')
-def promote_member_route(room_id, member_username):
+
+@app.route('/update_room_name/<room_id>', methods=['POST'])
+def update_room_name_page(room_id):
+    return api_update_room_name(room_id)
+
+
+@app.route('/api/rooms/<room_id>/promote/<member_username>', methods=['POST', 'GET'])
+def api_promote_member(room_id, member_username):
     if not session.get('logged_in'):
         return api_response(False, "Unauthorized"), 401
-        
+
     username = session['username']
-    from server.database import get_room_by_id
     room = get_room_by_id(room_id)
-    
+
     if not room or username not in room.get('admins', []):
         return api_response(False, "Only admins can promote others."), 403
-        
+
     promote_to_admin(room_id, member_username)
     return api_response(True, f"{member_username} is now an admin!")
 
-@app.route('/kick_member/<room_id>/<member_username>')
-def kick_member_route(room_id, member_username):
+
+@app.route('/promote_member/<room_id>/<member_username>')
+def promote_member_page(room_id, member_username):
+    return api_promote_member(room_id, member_username)
+
+
+@app.route('/api/rooms/<room_id>/kick/<member_username>', methods=['POST', 'GET'])
+def api_kick_member(room_id, member_username):
     if not session.get('logged_in'):
         return api_response(False, "Unauthorized"), 401
-        
+
     username = session['username']
-    from server.database import get_room_by_id
     room = get_room_by_id(room_id)
-    
+
     if not room or username not in room.get('admins', []):
         return api_response(False, "Only admins can remove members."), 403
-        
+
     if member_username == room.get('creator'):
-        return api_response(False, "You cannot remove the room creator."), 403
-    
-    from server.database import remove_user_from_room
+        return api_response(False, "You cannot remove room creator."), 403
+
     remove_user_from_room(room_id, member_username)
-    
-    # Notify room
+
     socketio.emit("message", {
         "username": "System",
-        "message": f"Admin {username} removed {member_username}."
+        "message": f"Admin {username} removed {member_username}.",
+        "message_type": "system"
     }, room=room_id)
-    
-    # Also notify the specific user to redirect if possible (simpler via room broadcast with check)
-    socketio.emit("user_kicked", {"username": member_username, "room_id": room_id}, room=room_id)
-    
+
+    socketio.emit(
+        "user_kicked",
+        {"username": member_username, "room_id": room_id},
+        room=room_id
+    )
+
     return api_response(True, f"{member_username} has been removed.")
 
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect(url_for('login'))
+
+@app.route('/kick_member/<room_id>/<member_username>')
+def kick_member_page(room_id, member_username):
+    return api_kick_member(room_id, member_username)
+
+
+@app.route('/api/auth/forgot_password', methods=['POST'])
+def api_forgot_password():
+    data = get_req_data()
+    email = data.get('email', '').strip()
+    from server.database import get_db
+    db = get_db()
+    user = db.users.find_one({"email": email})
+
+    if user:
+        token = serializer.dumps(email, salt='password-reset-salt')
+        reset_url = url_for('reset_password_page', token=token, _external=True)
+
+        msg = Message('Password Reset Request', recipients=[email])
+        msg.body = (
+            f"Hello,\n\nYou requested a password reset. Click below:\n\n"
+            f"{reset_url}\n\nValid for 1 hour."
+        )
+        try:
+            mail.send(msg)
+            return api_response(
+                True, "Reset link sent! Please check your email inbox."
+            )
+        except Exception:
+            return api_response(
+                False, "Failed to send reset email. Check SMTP settings."
+            ), 500
+    else:
+        return api_response(
+            False, "We couldn't find an account with that email."
+        ), 404
+
 
 @app.route('/forgot_password', methods=['GET', 'POST'])
-def forgot_password():
+def forgot_password_page():
     if request.method == 'POST':
-        email = request.form.get('email')
-        from server.database import get_db
-        db = get_db()
-        user = db.users.find_one({"email": email})
-        
-        if user:
-            token = serializer.dumps(email, salt='password-reset-salt')
-            reset_url = url_for('reset_password', token=token, _external=True)
-            
-            msg = Message('Password Reset Request', recipients=[email])
-            msg.body = f"Hello,\n\nYou requested a password reset. Please click the link below to reset your password (valid for 1 hour):\n\n{reset_url}\n\nIf you did not make this request, simply ignore this email."
-            try:
-                mail.send(msg)
-                return api_response(True, "A reset link has been sent to your email! Please check your inbox.")
-            except Exception as e:
-                print(f"Mail delivery error: {e}")
-                return api_response(False, "Failed to send reset email. Please check your SMTP settings in .env."), 500
-        else:
-            return api_response(False, "We couldn't find an account with that email address."), 404
-            
+        return api_forgot_password()
+    react = serve_react_index()
+    if react:
+        return react
     return render_template('forgot_password.html')
 
-@app.route('/reset_password/<token>', methods=['GET', 'POST'])
-def reset_password(token):
+
+@app.route('/api/auth/reset_password/<token>', methods=['POST'])
+def api_reset_password(token):
     try:
-        # Link expires in 3600 seconds (1 hour)
-        email = serializer.loads(token, salt='password-reset-salt', max_age=3600)
-    except:
-        return "The reset link is invalid or has expired.", 400
+        email = serializer.loads(
+            token, salt='password-reset-salt', max_age=3600
+        )
+    except Exception:
+        return api_response(
+            False, "The reset link is invalid or has expired."
+        ), 400
 
+    data = get_req_data()
+    password = data.get('password', '')
+    confirm_password = data.get('confirm_password', '')
+
+    if not password or len(password) < 6:
+        return api_response(
+            False, "Password must be at least 6 characters."
+        ), 400
+    if password != confirm_password:
+        return api_response(False, "Passwords do not match."), 400
+
+    hashed_password = generate_password_hash(password)
+    update_user_password(email, hashed_password)
+
+    return api_response(
+        True, "Password reset successfully!", {"redirect": "/login"}
+    )
+
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password_page(token):
     if request.method == 'POST':
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
-        
-        if not password or len(password) < 6:
-            return api_response(False, "Password must be at least 6 characters."), 400
-        if password != confirm_password:
-            return api_response(False, "Passwords do not match."), 400
-            
-        hashed_password = generate_password_hash(password)
-        update_user_password(email, hashed_password)
-        
-        return api_response(True, "Your password has been reset successfully!", {"redirect": url_for('login')})
-
+        return api_reset_password(token)
+    react = serve_react_index()
+    if react:
+        return react
     return render_template('reset_password.html', token=token)
 
+
 @app.route('/profile', methods=['GET', 'POST'])
-def profile():
+def profile_page():
     if not session.get('logged_in'):
-        return redirect(url_for('login'))
-    
+        return redirect(url_for('login_page'))
+
+    react = serve_react_index()
+    if react:
+        return react
+
     username = session['username']
     user = login_user(username)
-
-    if request.method == 'POST':
-        # Handled by upload_dp generally, but keeping this for structure
-        return redirect(url_for('chat'))
-
-    return render_template('profile.html', username=user['username'], profile_photo=user['profile_photo'], full_name=user['full_name'], email=user['email'])
+    return render_template(
+        'profile.html',
+        username=user['username'],
+        profile_photo=user['profile_photo'],
+        full_name=user['full_name'],
+        email=user['email']
+    )
 
 
 @app.route('/upload_dp', methods=['POST'])
-def upload_dp():
+@app.route('/api/upload_dp', methods=['POST'])
+def api_upload_dp():
     if not session.get('logged_in'):
         return api_response(False, "Unauthorized"), 401
 
     if 'profile_photo' not in request.files:
-        return api_response(False, "We couldn't find the photo file. Please try selecting it again."), 400
-    
+        return api_response(False, "No photo file provided."), 400
+
     file = request.files['profile_photo']
     if file.filename == '':
-        return api_response(False, "It looks like no photo was selected. Please choose a file."), 400
+        return api_response(False, "No photo selected."), 400
 
     if file:
         filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        unique_filename = f"{uuid.uuid4().hex}_{filename}"
+
+        if not os.path.exists(app.config['UPLOAD_FOLDER']):
+            os.makedirs(app.config['UPLOAD_FOLDER'])
+
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
         file.save(filepath)
 
-        update_profile_photo(session['username'], filename)
-        session['dp'] = f"/static/uploads/{filename}"
-        return api_response(True, "Looking good! Your profile photo has been updated.", {"dp": session['dp']})
-    
-    return api_response(False, "Oops! Something went wrong while saving your photo. Please try again."), 500
+        update_profile_photo(session['username'], unique_filename)
+        session['dp'] = f"/static/uploads/{unique_filename}"
+        return api_response(
+            True, "Profile photo updated!", {"dp": session['dp']}
+        )
+
+    return api_response(False, "Failed to save photo."), 500
 
 
 @app.route('/upload_chat_file', methods=['POST'])
-def upload_chat_file():
+@app.route('/api/upload_chat_file', methods=['POST'])
+def api_upload_chat_file():
     if not session.get('logged_in'):
         return api_response(False, "Unauthorized"), 401
 
     if 'file' not in request.files:
         return api_response(False, "No file provided."), 400
-    
+
     file = request.files['file']
     if file.filename == '':
         return api_response(False, "No file selected."), 400
 
     if file:
         filename = secure_filename(file.filename)
-        # Ensure unique filename
-        import uuid
         unique_filename = f"{uuid.uuid4().hex}_{filename}"
-        
-        chat_files_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'chat_files')
+
+        chat_files_dir = os.path.join(
+            app.config['UPLOAD_FOLDER'], 'chat_files'
+        )
         if not os.path.exists(chat_files_dir):
             os.makedirs(chat_files_dir)
-            
+
         filepath = os.path.join(chat_files_dir, unique_filename)
         file.save(filepath)
 
@@ -526,54 +815,152 @@ def upload_chat_file():
             "filename": filename,
             "url": f"/static/uploads/chat_files/{unique_filename}"
         })
-    
+
     return api_response(False, "Failed to upload file."), 500
 
-### ---- SOCKET.IO EVENTS ---- ###
+
+@app.route('/chat')
+def chat_page():
+    if not session.get('logged_in'):
+        react = serve_react_index()
+        if react:
+            return react
+        return redirect(url_for('login_page'))
+
+    react = serve_react_index()
+    if react:
+        return react
+
+    username = session.get('username')
+    dp = session.get('dp')
+
+    rooms = get_rooms(username)
+    for r in rooms:
+        r['_id'] = str(r['_id'])
+
+    room_id = session.get('room_id')
+    if not room_id and rooms:
+        room_id = rooms[0]['_id']
+        session['room_id'] = room_id
+
+    messages = []
+    members = []
+    current_room = None
+    if room_id:
+        current_room = get_room_by_id(room_id)
+        if not current_room:
+            session.pop('room_id', None)
+            return redirect(url_for('chat_page'))
+
+        current_room['_id'] = str(current_room['_id'])
+        if username not in current_room.get('members', []):
+            session.pop('room_id', None)
+            return redirect(url_for('chat_page'))
+
+        members = get_room_members(current_room.get('members', []))
+        messages = get_chat_history(room_id)
+        for msg in messages:
+            msg['_id'] = str(msg['_id'])
+            user = login_user(msg['sender'])
+            msg['profile_photo'] = user['profile_photo'] if user else '2.jpg'
+
+    return render_template(
+        'chat.html',
+        username=username,
+        dp=dp,
+        messages=messages,
+        rooms=rooms,
+        current_room_id=str(room_id) if room_id else None,
+        members=members,
+        current_room=current_room
+    )
+
+
+# ---- SOCKET.IO EVENTS ---- #
 
 @socketio.on("join")
 def handle_join(data):
-    if not session.get('logged_in'):
-        return
-
-    username = session['username']
-    room = data.get("room") # This is room_id
+    username = session.get('username') or data.get('username')
+    room = data.get("room")
     if room:
         join_room(room)
-        # REMOVED: Automatic join message emission on every socket connection
-        # Join messages are now handled once in the /join_room_by_code_route
         print(f"User {username} joined room socket {room}")
 
 
 @socketio.on("message")
 def handle_message(data):
     try:
-        username = session.get('username')
-        room_id = session.get('room_id')
+        username = session.get('username') or data.get('username')
+        room_id = session.get('room_id') or data.get('room_id')
         message = data.get('message', '')
         message_type = data.get('message_type', 'text')
         file_info = data.get('file_info')
-        dp = session.get('dp')
+        dp = session.get('dp') or data.get('dp')
 
         if not username or not room_id:
             return
 
-        # Insert the message into the database
-        save_message(username, message, room_id, message_type=message_type, file_info=file_info)
+        res = save_message(
+            username, message, room_id,
+            message_type=message_type, file_info=file_info
+        )
 
-        # Emit the message to the room
+        now_ist = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+        time_formatted = now_ist.strftime('%H:%M')
+
         chat_entry = {
-            "username": username, 
-            "dp": dp, 
-            "message": message, 
+            "id": str(res.inserted_id) if hasattr(res, 'inserted_id') else None,
+            "username": username,
+            "sender": username,
+            "dp": dp,
+            "message": message,
             "message_type": message_type,
-            "file_info": file_info
+            "file_info": file_info,
+            "room_id": room_id,
+            "time_formatted": time_formatted
         }
         socketio.emit("message", chat_entry, room=room_id)
+
+        # AI BOT TRIGGER
+        if message and '@ai' in message.lower():
+            bot_reply = handle_ai_bot_query(message, room_id)
+            ai_res = save_message(
+                AI_BOT_NAME, bot_reply, room_id, message_type="ai"
+            )
+            ai_entry = {
+                "id": str(ai_res.inserted_id) if hasattr(ai_res, 'inserted_id') else None,
+                "username": AI_BOT_NAME,
+                "sender": AI_BOT_NAME,
+                "dp": AI_BOT_DP,
+                "message": bot_reply,
+                "message_type": "ai",
+                "room_id": room_id,
+                "time_formatted": time_formatted
+            }
+            socketio.emit("message", ai_entry, room=room_id)
     except Exception as e:
         print(f"Error while handling message: {e}")
 
 
-### ---- MAIN APP ENTRY POINT ---- ###
+# ---- SERVE REACT FRONTEND DIST IN PROD ---- #
+
+@app.route('/<path:path>')
+def serve_static_or_react(path):
+    if path.startswith('static/'):
+        rel_path = path.replace('static/', '', 1)
+        return send_from_directory(app.static_folder, rel_path)
+
+    dist_file = os.path.join(FRONTEND_DIST, path)
+    if os.path.exists(dist_file):
+        return send_from_directory(FRONTEND_DIST, path)
+
+    react = serve_react_index()
+    if react:
+        return react
+
+    return redirect(url_for('login_page'))
+
+
+# ---- MAIN APP ENTRY POINT ---- #
 if __name__ == "__main__":
     socketio.run(app, port=5001, debug=True)

@@ -1,0 +1,10 @@
+{
+  "name": "multi-threaded-chat-app",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix client/frontend run dev",
+    "build": "npm --prefix client/frontend run build",
+    "server": "python app.py"
+  }
+}

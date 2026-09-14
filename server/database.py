@@ -1,5 +1,5 @@
 from pymongo import MongoClient
-from datetime import datetime
+from datetime import datetime, timezone
 from server.config import MONGO_URI, DATABASE_NAME
 
 def get_db():
@@ -15,7 +15,7 @@ def register_user(username, password_hash, full_name, email, profile_photo):
         "full_name": full_name,
         "email": email,
         "profile_photo": profile_photo,
-        "created_at": datetime.utcnow()
+        "created_at": datetime.now(timezone.utc)
     }
     return db.users.insert_one(user_data)
 
@@ -40,7 +40,7 @@ def save_message(sender, message, room_id, message_type="text", file_info=None):
         "room_id": room_id,
         "message_type": message_type, # text, system, file
         "file_info": file_info, # {filename: "", url: ""}
-        "timestamp": datetime.utcnow()
+        "timestamp": datetime.now(timezone.utc)
     }
     return db.messages.insert_one(message_data)
 
@@ -52,19 +52,20 @@ def get_chat_history(room_id):
 # Function to create a new chat room
 def create_room(room_name, room_code, creator_username):
     db = get_db()
+    now_utc = datetime.now(timezone.utc)
     room_data = {
         "room_name": room_name,
         "room_code": room_code,
         "creator": creator_username,
         "admins": [creator_username],
         "members": [creator_username],
-        "created_at": datetime.utcnow()
+        "created_at": now_utc
     }
     res = db.rooms.insert_one(room_data)
     
     # Generate current time in IST for the message text
     import pytz
-    ist_now = datetime.utcnow().replace(tzinfo=pytz.utc).astimezone(pytz.timezone('Asia/Kolkata'))
+    ist_now = now_utc.astimezone(pytz.timezone('Asia/Kolkata'))
     time_str = ist_now.strftime("%d-%m-%Y %H:%M")
 
     # Save a system join message for the creator
