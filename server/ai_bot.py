@@ -28,7 +28,14 @@ ACRONYMS = {
     "bug": "A **Bug** is an error, flaw, or fault in software that causes it to produce incorrect results or behave unexpectedly.",
     "api": "**API** stands for **\"Application Programming Interface\"**, allowing different software applications to communicate with each other.",
     "faq": "**FAQ** stands for **\"Frequently Asked Questions\"**.",
-    "aka": "**AKA** stands for **\"Also Known As\"**."
+    "aka": "**AKA** stands for **\"Also Known As\"**.",
+    "lmk": "**LMK** stands for **\"Let Me Know\"**.",
+    "lgtm": "**LGTM** stands for **\"Looks Good To Me\"**, commonly used in code reviews and pull requests.",
+    "lmgtfy": "**LMGTFY** stands for **\"Let Me Google That For You\"**.",
+    "lmao": "**LMAO** stands for **\"Laughing My Ass Off\"**.",
+    "lol": "**LOL** stands for **\"Laugh Out Loud\"**.",
+    "rofl": "**ROFL** stands for **\"Rolling On Floor Laughing\"**.",
+    "np": "**NP** stands for **\"No Problem\"**."
 }
 
 def query_gemini_api(prompt):
