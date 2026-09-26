@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from server.config import MONGO_URI, DATABASE_NAME
 
 def get_db():
-    client = MongoClient(MONGO_URI)
+    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
     return client[DATABASE_NAME]
 
 # Function to create a new user (Registration)

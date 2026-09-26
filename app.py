@@ -172,24 +172,25 @@ def handle_register_logic(data):
     if "@" not in email or "." not in email:
         return api_response(False, "Please enter a valid email address."), 400
 
-    if login_user(username):
-        return api_response(
-            False, "This username is already taken. Try another?"
-        ), 400
-
-    if login_user(email):
-        return api_response(
-            False, "An account with this email already exists."
-        ), 400
-
-    hashed_password = generate_password_hash(password)
-    default_dp = "2.jpg"
-
     try:
+        if login_user(username):
+            return api_response(
+                False, "This username is already taken. Try another?"
+            ), 400
+
+        if login_user(email):
+            return api_response(
+                False, "An account with this email already exists."
+            ), 400
+
+        hashed_password = generate_password_hash(password)
+        default_dp = "2.jpg"
+
         register_user(username, hashed_password, full_name, email, default_dp)
-    except Exception:
+    except Exception as e:
+        print(f"[AUTH REGISTER ERROR] Database error: {e}")
         return api_response(
-            False, "Registration failed due to a server error."
+            False, "Database connection error. Please check MONGO_URI configuration in Render."
         ), 500
 
     session['logged_in'] = True
@@ -221,7 +222,14 @@ def handle_login_logic(data):
             False, "Username/Email and Password are required."
         ), 400
 
-    user = login_user(identifier)
+    try:
+        user = login_user(identifier)
+    except Exception as e:
+        print(f"[AUTH LOGIN ERROR] Database error: {e}")
+        return api_response(
+            False, "Database connection error. Please check MONGO_URI configuration in Render."
+        ), 500
+
     if user:
         if check_password_hash(user['password_hash'], password):
             session['logged_in'] = True
