@@ -251,7 +251,7 @@ def test_password_recovery(client):
 
 def test_page_routes_and_fallbacks(client):
     # Test GET routes
-    routes = ['/', '/login', '/register', '/forgot_password']
+    routes = ['/', '/login', '/register', '/forgot_password', '/api/ping', '/ping']
     for r in routes:
         resp = client.get(r)
         assert resp.status_code in [200, 302]

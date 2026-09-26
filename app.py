@@ -61,8 +61,45 @@ app.config['MAIL_DEFAULT_SENDER'] = MAIL_DEFAULT_SENDER
 
 mail = Mail(app)
 serializer = URLSafeTimedSerializer(SECRET_KEY)
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", ping_interval=25, ping_timeout=60)
 register_call_events(socketio)
+
+
+def start_self_ping_service():
+    """Background daemon thread to ping the application every 10 minutes (600s) to prevent Render free-tier idle sleep."""
+    ping_url = os.environ.get('SELF_PING_URL') or os.environ.get('RENDER_EXTERNAL_URL')
+    if not ping_url:
+        return
+
+    if not ping_url.endswith('/api/ping'):
+        ping_url = ping_url.rstrip('/') + '/api/ping'
+
+    import threading
+    import time
+    import urllib.request
+
+    def ping_loop():
+        print(f"Self-ping service started. Pinging {ping_url} every 10 minutes.")
+        while True:
+            time.sleep(600)  # Every 10 minutes
+            try:
+                req = urllib.request.Request(ping_url, headers={'User-Agent': 'KeepAlivePing/1.0'})
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    print(f"10-min ping success: {resp.status}")
+            except Exception as err:
+                print(f"10-min ping log: {err}")
+
+    t = threading.Thread(target=ping_loop, daemon=True)
+    t.start()
+
+
+start_self_ping_service()
+
+
+@app.route('/api/ping', methods=['GET'])
+@app.route('/ping', methods=['GET'])
+def api_ping():
+    return api_response(True, "pong", {"timestamp": datetime.now(timezone.utc).isoformat()})
 
 
 @app.template_filter('to_ist')

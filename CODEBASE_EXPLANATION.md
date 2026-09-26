@@ -111,6 +111,7 @@ Built using **React 18** + **Vite** + **Lucide React Icons** + **Socket.IO Clien
 | `/api/profile` | `POST` | Update username & full name | Yes |
 | `/api/upload_dp` | `POST` | Upload new user avatar photo | Yes |
 | `/api/upload_chat_file` | `POST` | Upload attachment file to chat | Yes |
+| `/api/ping` or `/ping` | `GET` | 10-minute keep-alive health check endpoint | No |
 
 ---
 
