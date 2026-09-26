@@ -1,11 +1,12 @@
 import React, { useState, useRef } from 'react';
-import { X, Camera, User, Mail, Save, AlertCircle } from 'lucide-react';
+import { X, Camera, User, Mail, Save, AlertCircle, Loader2 } from 'lucide-react';
 
 export default function ProfileModal({ isOpen, onClose, user, onUpdateProfile, onUploadDp, showToast }) {
   const [fullName, setFullName] = useState(user?.full_name || '');
   const [username, setUsername] = useState(user?.username || '');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [uploadingDp, setUploadingDp] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -18,6 +19,7 @@ export default function ProfileModal({ isOpen, onClose, user, onUpdateProfile, o
     const formData = new FormData();
     formData.append('profile_photo', file);
 
+    setUploadingDp(true);
     try {
       const res = await onUploadDp(formData);
       if (res.status) {
@@ -27,6 +29,8 @@ export default function ProfileModal({ isOpen, onClose, user, onUpdateProfile, o
       }
     } catch (err) {
       showToast('Error uploading photo', 'error');
+    } finally {
+      setUploadingDp(false);
     }
   };
 
@@ -60,7 +64,7 @@ export default function ProfileModal({ isOpen, onClose, user, onUpdateProfile, o
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2 className="modal-title">Your Profile Settings</h2>
-          <button className="btn-icon" style={{ width: '32px', height: '32px' }} onClick={onClose}>
+          <button className="btn-icon" style={{ width: '32px', height: '32px' }} onClick={onClose} disabled={loading || uploadingDp}>
             <X size={16} />
           </button>
         </div>
@@ -73,11 +77,11 @@ export default function ProfileModal({ isOpen, onClose, user, onUpdateProfile, o
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '24px' }}>
-          <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => fileInputRef.current?.click()}>
+          <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => !uploadingDp && fileInputRef.current?.click()}>
             <img
               src={user?.dp || '/static/uploads/2.jpg'}
               alt="Profile"
-              style={{ width: '80px', height: '80px', borderRadius: '20px', objectFit: 'cover', border: '3px solid var(--accent-primary)' }}
+              style={{ width: '80px', height: '80px', borderRadius: '20px', objectFit: 'cover', border: '3px solid var(--accent-primary)', opacity: uploadingDp ? 0.5 : 1 }}
               onError={(e) => { e.target.src = '/static/uploads/2.jpg'; }}
             />
             <div style={{
@@ -88,9 +92,12 @@ export default function ProfileModal({ isOpen, onClose, user, onUpdateProfile, o
               color: '#fff',
               borderRadius: '50%',
               padding: '6px',
-              boxShadow: 'var(--shadow-sm)'
+              boxShadow: 'var(--shadow-sm)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
             }}>
-              <Camera size={14} />
+              {uploadingDp ? <Loader2 size={14} className="spinner-icon" /> : <Camera size={14} />}
             </div>
           </div>
           <input
@@ -98,9 +105,12 @@ export default function ProfileModal({ isOpen, onClose, user, onUpdateProfile, o
             ref={fileInputRef}
             style={{ display: 'none' }}
             accept="image/*"
+            disabled={uploadingDp}
             onChange={handleDpChange}
           />
-          <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>Click photo to change avatar</span>
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>
+            {uploadingDp ? 'Uploading new photo...' : 'Click photo to change avatar'}
+          </span>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -112,6 +122,7 @@ export default function ProfileModal({ isOpen, onClose, user, onUpdateProfile, o
                 type="text"
                 className="form-input"
                 value={fullName}
+                disabled={loading}
                 onChange={(e) => setFullName(e.target.value)}
               />
             </div>
@@ -125,6 +136,7 @@ export default function ProfileModal({ isOpen, onClose, user, onUpdateProfile, o
                 type="text"
                 className="form-input"
                 value={username}
+                disabled={loading}
                 onChange={(e) => setUsername(e.target.value)}
               />
             </div>
@@ -145,10 +157,24 @@ export default function ProfileModal({ isOpen, onClose, user, onUpdateProfile, o
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '20px' }}>
-            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary" style={{ width: 'auto' }} disabled={loading}>
-              <Save size={16} />
-              <span>{loading ? 'Saving...' : 'Save Profile'}</span>
+            <button type="button" className="btn-secondary" onClick={onClose} disabled={loading}>Cancel</button>
+            <button
+              type="submit"
+              className="btn-primary"
+              style={{ width: 'auto', opacity: loading ? 0.75 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <Loader2 size={16} className="spinner-icon" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Save size={16} />
+                  <span>Save Profile</span>
+                </>
+              )}
             </button>
           </div>
         </form>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageSquare, Mail, ArrowLeft, Send, CheckCircle, AlertCircle } from 'lucide-react';
+import { MessageSquare, Mail, ArrowLeft, Send, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 export default function ForgotPassword({ onNavigateLogin }) {
   const [email, setEmail] = useState('');
@@ -93,14 +93,29 @@ export default function ForgotPassword({ onNavigateLogin }) {
                 className="form-input"
                 placeholder="your.email@example.com"
                 value={email}
+                disabled={loading}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
           </div>
 
-          <button type="submit" className="btn-primary" disabled={loading} style={{ marginTop: '12px' }}>
-            <span>{loading ? 'Sending link...' : 'Send Reset Link'}</span>
-            <Send size={16} />
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={loading}
+            style={{ marginTop: '12px', opacity: loading ? 0.75 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
+          >
+            {loading ? (
+              <>
+                <Loader2 size={18} className="spinner-icon" />
+                <span>Sending Link...</span>
+              </>
+            ) : (
+              <>
+                <span>Send Reset Link</span>
+                <Send size={16} />
+              </>
+            )}
           </button>
         </form>
 

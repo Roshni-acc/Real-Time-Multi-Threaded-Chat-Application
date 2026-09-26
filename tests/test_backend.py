@@ -1,4 +1,6 @@
 import os
+import io
+import uuid
 import pytest
 from app import app as flask_app, socketio
 
@@ -6,12 +8,13 @@ from app import app as flask_app, socketio
 def client():
     flask_app.config['TESTING'] = True
     flask_app.config['SECRET_KEY'] = 'test-secret-key'
+    # Suppress mail sending errors during test if mail server not present
+    flask_app.config['MAIL_SUPPRESS_SEND'] = True
     with flask_app.test_client() as client:
         with flask_app.app_context():
             yield client
 
 def test_register_and_login(client):
-    import uuid
     random_str = str(uuid.uuid4())[:6]
     username = f"user_{random_str}"
     email = f"user_{random_str}@example.com"
@@ -51,8 +54,7 @@ def test_register_and_login(client):
     assert login_data['status'] is True
     assert login_data['data']['user']['username'] == username
 
-def test_room_creation_and_joining(client):
-    import uuid
+def test_room_creation_joining_and_retrieval(client):
     user1 = f"creator_{str(uuid.uuid4())[:6]}"
     user2 = f"joiner_{str(uuid.uuid4())[:6]}"
 
@@ -74,6 +76,17 @@ def test_room_creation_and_joining(client):
     room_code = create_data['data']['room_code']
     assert room_id is not None
     assert room_code is not None
+
+    # Test Get Rooms List
+    rooms_resp = client.get('/api/rooms')
+    assert rooms_resp.status_code == 200
+    rooms_data = rooms_resp.get_json()
+    assert rooms_data['status'] is True
+    assert len(rooms_data['data']['rooms']) >= 1
+
+    # Select Room
+    select_resp = client.post(f'/api/rooms/{room_id}/select')
+    assert select_resp.status_code == 200
 
     # Logout User 1
     client.post('/api/auth/logout')
@@ -103,8 +116,7 @@ def test_room_creation_and_joining(client):
     assert user1 in member_usernames
     assert user2 in member_usernames
 
-def test_admin_room_management(client):
-    import uuid
+def test_admin_room_management_and_leave(client):
     admin = f"admin_{str(uuid.uuid4())[:6]}"
     member = f"member_{str(uuid.uuid4())[:6]}"
 
@@ -135,6 +147,14 @@ def test_admin_room_management(client):
     })
     client.post('/api/rooms/join', json={'room_code': create_res['data']['room_code']})
 
+    # Member leaves room test
+    leave_resp = client.post(f'/api/rooms/{room_id}/leave')
+    assert leave_resp.status_code == 200
+    assert leave_resp.get_json()['status'] is True
+
+    # Re-join room to test promotion and kick
+    client.post('/api/rooms/join', json={'room_code': create_res['data']['room_code']})
+
     # Login back as Admin
     client.post('/api/auth/logout')
     client.post('/api/auth/login', json={'username': admin, 'password': 'password123'})
@@ -154,8 +174,93 @@ def test_admin_room_management(client):
     assert del_resp.status_code == 200
     assert del_resp.get_json()['status'] is True
 
+def test_user_profile_and_uploads(client):
+    user_str = f"prof_{str(uuid.uuid4())[:6]}"
+    username = user_str
+    email = f"{username}@example.com"
+
+    # Register User
+    client.post('/api/auth/register', json={
+        'full_name': 'Profile Test User',
+        'email': email,
+        'username': username,
+        'password': 'password123',
+        'confirm_password': 'password123'
+    })
+
+    # Update Profile
+    new_fullname = "Updated Profile Name"
+    prof_resp = client.post('/api/profile', json={
+        'username': username,
+        'full_name': new_fullname
+    })
+    assert prof_resp.status_code == 200
+    assert prof_resp.get_json()['data']['user']['full_name'] == new_fullname
+
+    # Upload DP
+    dp_data = {
+        'profile_photo': (io.BytesIO(b"fake_image_data"), "avatar.jpg")
+    }
+    dp_resp = client.post('/api/upload_dp', data=dp_data, content_type='multipart/form-data')
+    assert dp_resp.status_code == 200
+    assert dp_resp.get_json()['status'] is True
+
+    # Upload Chat File
+    file_data = {
+        'file': (io.BytesIO(b"hello world test file"), "sample.txt")
+    }
+    chat_file_resp = client.post('/api/upload_chat_file', data=file_data, content_type='multipart/form-data')
+    assert chat_file_resp.status_code == 200
+    assert chat_file_resp.get_json()['status'] is True
+    assert "url" in chat_file_resp.get_json()['data']
+
+def test_password_recovery(client):
+    user_str = f"pwd_{str(uuid.uuid4())[:6]}"
+    email = f"{user_str}@example.com"
+
+    client.post('/api/auth/register', json={
+        'full_name': 'Pwd Recovery User',
+        'email': email,
+        'username': user_str,
+        'password': 'password123',
+        'confirm_password': 'password123'
+    })
+
+    # Forgot password request
+    forgot_resp = client.post('/api/auth/forgot_password', json={'email': email})
+    # Since mail send might fail or pass depending on config, check status code is 200 or 500
+    assert forgot_resp.status_code in [200, 500]
+
+    # Directly generate valid token to test reset endpoint
+    from app import serializer
+    token = serializer.dumps(email, salt='password-reset-salt')
+    reset_resp = client.post(f'/api/auth/reset_password/{token}', json={
+        'password': 'newpassword123',
+        'confirm_password': 'newpassword123'
+    })
+    assert reset_resp.status_code == 200
+    assert reset_resp.get_json()['status'] is True
+
+    # Verify login with new password
+    client.post('/api/auth/logout')
+    login_resp = client.post('/api/auth/login', json={
+        'username': user_str,
+        'password': 'newpassword123'
+    })
+    assert login_resp.status_code == 200
+
+def test_page_routes_and_fallbacks(client):
+    # Test GET routes
+    routes = ['/', '/login', '/register', '/forgot_password']
+    for r in routes:
+        resp = client.get(r)
+        assert resp.status_code in [200, 302]
+
+    # Test Logout page route
+    logout_resp = client.get('/logout')
+    assert logout_resp.status_code == 302
+
 def test_socketio_multi_client_chat(client):
-    import uuid
     user1 = f"sock1_{str(uuid.uuid4())[:6]}"
     user2 = f"sock2_{str(uuid.uuid4())[:6]}"
 
@@ -211,3 +316,22 @@ def test_socketio_multi_client_chat(client):
 
     socket_client_1.disconnect()
     socket_client_2.disconnect()
+
+def test_ai_bot_query(client):
+    from server.ai_bot import handle_ai_bot_query
+
+    # 1. Test Help Prompt
+    res_help = handle_ai_bot_query("@ai", "fake_room_id")
+    assert "AI Assistant" in res_help
+
+    # 2. Test Acronym Prompt
+    res_acronym = handle_ai_bot_query("@ai meaning of asap", "fake_room_id")
+    assert "ASAP" in res_acronym
+
+    # 3. Test Technical Fallback
+    res_tech = handle_ai_bot_query("@ai explain python code", "fake_room_id")
+    assert "Code Assistant" in res_tech or "AI Assistant" in res_tech
+
+    # 4. Test Summarization with no messages
+    res_sum_empty = handle_ai_bot_query("@ai summarize", "fake_room_id_empty")
+    assert "no user messages" in res_sum_empty

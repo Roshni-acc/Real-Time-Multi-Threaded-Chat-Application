@@ -9,6 +9,10 @@ env/
 instance/
 .DS_Store
 static/uploads/*
-!static/uploads/.gitkeep
+client/ui/static/uploads/*
+!client/ui/static/uploads/2.jpg
+!client/ui/static/uploads/3.jpg
+!client/ui/static/uploads/download1.jpg
+!client/ui/static/uploads/imresizer-1722416067255_1.jpg
 client/frontend/node_modules/
 client/frontend/dist/

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import Peer from 'peerjs';
+import { MessageSquare, Loader2 } from 'lucide-react';
 
 import Login from './components/Auth/Login';
 import Register from './components/Auth/Register';
@@ -325,11 +326,22 @@ export default function App() {
     return await res.json();
   };
 
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
   const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    setUser(null);
-    setCurrentRoom(null);
-    setRooms([]);
+    setIsLoggingOut(true);
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      // Small artificial delay for visual smoothness of transition loader
+      await new Promise((res) => setTimeout(res, 500));
+      setUser(null);
+      setCurrentRoom(null);
+      setRooms([]);
+    } catch (err) {
+      console.error("Logout error:", err);
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   // WebRTC Calling
@@ -406,10 +418,16 @@ export default function App() {
     setActiveCall(null);
   };
 
-  if (loadingAuth) {
+  if (loadingAuth || isLoggingOut) {
     return (
-      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
-        <div style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>Loading chat application...</div>
+      <div className="full-screen-loader">
+        <div className="auth-brand-logo" style={{ animation: 'bounce 1.5s infinite alternate' }}>
+          <MessageSquare size={32} />
+        </div>
+        <div className="big-loader" style={{ marginTop: '20px' }}></div>
+        <p style={{ marginTop: '20px', color: 'var(--text-secondary)', fontWeight: '500', fontSize: '15px' }}>
+          {isLoggingOut ? 'Logging out cleanly...' : 'Loading chat application...'}
+        </p>
       </div>
     );
   }

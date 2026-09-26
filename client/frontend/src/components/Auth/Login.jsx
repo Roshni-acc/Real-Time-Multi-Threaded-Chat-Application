@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageSquare, Lock, User, ArrowRight, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { MessageSquare, Lock, User, ArrowRight, AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function Login({ onLoginSuccess, onNavigateRegister, onNavigateForgot }) {
   const [identifier, setIdentifier] = useState('');
@@ -75,6 +75,7 @@ export default function Login({ onLoginSuccess, onNavigateRegister, onNavigateFo
                 className="form-input"
                 placeholder="Enter your username or email"
                 value={identifier}
+                disabled={loading}
                 onChange={(e) => setIdentifier(e.target.value)}
               />
             </div>
@@ -99,6 +100,7 @@ export default function Login({ onLoginSuccess, onNavigateRegister, onNavigateFo
                 style={{ paddingRight: '42px' }}
                 placeholder="Enter your password"
                 value={password}
+                disabled={loading}
                 onChange={(e) => setPassword(e.target.value)}
               />
               <button
@@ -121,9 +123,23 @@ export default function Login({ onLoginSuccess, onNavigateRegister, onNavigateFo
             </div>
           </div>
 
-          <button type="submit" className="btn-primary" disabled={loading} style={{ marginTop: '12px' }}>
-            <span>{loading ? 'Signing in...' : 'Sign In'}</span>
-            <ArrowRight size={18} />
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={loading}
+            style={{ marginTop: '12px', opacity: loading ? 0.75 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
+          >
+            {loading ? (
+              <>
+                <Loader2 size={18} className="spinner-icon" />
+                <span>Signing in...</span>
+              </>
+            ) : (
+              <>
+                <span>Sign In</span>
+                <ArrowRight size={18} />
+              </>
+            )}
           </button>
         </form>
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Plus, MessageSquare } from 'lucide-react';
+import { X, Plus, MessageSquare, Loader2 } from 'lucide-react';
 
 export default function CreateRoomModal({ isOpen, onClose, onCreateRoom }) {
   const [roomName, setRoomName] = useState('');
@@ -37,7 +37,7 @@ export default function CreateRoomModal({ isOpen, onClose, onCreateRoom }) {
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2 className="modal-title">Create New Group Chat</h2>
-          <button className="btn-icon" style={{ width: '32px', height: '32px' }} onClick={onClose}>
+          <button className="btn-icon" style={{ width: '32px', height: '32px' }} onClick={onClose} disabled={loading}>
             <X size={16} />
           </button>
         </div>
@@ -56,16 +56,31 @@ export default function CreateRoomModal({ isOpen, onClose, onCreateRoom }) {
                 className="form-input"
                 placeholder="e.g. Developer Team Chat"
                 value={roomName}
+                disabled={loading}
                 onChange={(e) => setRoomName(e.target.value)}
               />
             </div>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '20px' }}>
-            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary" style={{ width: 'auto' }} disabled={loading}>
-              <Plus size={16} />
-              <span>{loading ? 'Creating...' : 'Create Room'}</span>
+            <button type="button" className="btn-secondary" onClick={onClose} disabled={loading}>Cancel</button>
+            <button
+              type="submit"
+              className="btn-primary"
+              style={{ width: 'auto', opacity: loading ? 0.75 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <Loader2 size={16} className="spinner-icon" />
+                  <span>Creating...</span>
+                </>
+              ) : (
+                <>
+                  <Plus size={16} />
+                  <span>Create Room</span>
+                </>
+              )}
             </button>
           </div>
         </form>

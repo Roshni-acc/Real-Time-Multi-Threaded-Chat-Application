@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageSquare, Lock, User, Mail, ArrowRight, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { MessageSquare, Lock, User, Mail, ArrowRight, AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function Register({ onRegisterSuccess, onNavigateLogin }) {
   const [formData, setFormData] = useState({
@@ -96,6 +96,7 @@ export default function Register({ onRegisterSuccess, onNavigateLogin }) {
                 className="form-input"
                 placeholder="e.g. Roshni Singh"
                 value={formData.full_name}
+                disabled={loading}
                 onChange={handleChange}
               />
             </div>
@@ -111,6 +112,7 @@ export default function Register({ onRegisterSuccess, onNavigateLogin }) {
                 className="form-input"
                 placeholder="name@example.com"
                 value={formData.email}
+                disabled={loading}
                 onChange={handleChange}
               />
             </div>
@@ -126,6 +128,7 @@ export default function Register({ onRegisterSuccess, onNavigateLogin }) {
                 className="form-input"
                 placeholder="Choose a unique handle"
                 value={formData.username}
+                disabled={loading}
                 onChange={handleChange}
               />
             </div>
@@ -142,6 +145,7 @@ export default function Register({ onRegisterSuccess, onNavigateLogin }) {
                 style={{ paddingRight: '42px' }}
                 placeholder="At least 6 characters"
                 value={formData.password}
+                disabled={loading}
                 onChange={handleChange}
               />
               <button
@@ -175,6 +179,7 @@ export default function Register({ onRegisterSuccess, onNavigateLogin }) {
                 style={{ paddingRight: '42px' }}
                 placeholder="Re-enter password"
                 value={formData.confirm_password}
+                disabled={loading}
                 onChange={handleChange}
               />
               <button
@@ -197,9 +202,23 @@ export default function Register({ onRegisterSuccess, onNavigateLogin }) {
             </div>
           </div>
 
-          <button type="submit" className="btn-primary" disabled={loading} style={{ marginTop: '12px' }}>
-            <span>{loading ? 'Creating Account...' : 'Get Started'}</span>
-            <ArrowRight size={18} />
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={loading}
+            style={{ marginTop: '12px', opacity: loading ? 0.75 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
+          >
+            {loading ? (
+              <>
+                <Loader2 size={18} className="spinner-icon" />
+                <span>Creating Account...</span>
+              </>
+            ) : (
+              <>
+                <span>Get Started</span>
+                <ArrowRight size={18} />
+              </>
+            )}
           </button>
         </form>
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Hash, LogIn } from 'lucide-react';
+import { X, Hash, LogIn, Loader2 } from 'lucide-react';
 
 export default function JoinRoomModal({ isOpen, onClose, onJoinRoom }) {
   const [roomCode, setRoomCode] = useState('');
@@ -37,7 +37,7 @@ export default function JoinRoomModal({ isOpen, onClose, onJoinRoom }) {
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2 className="modal-title">Join Group by Room Code</h2>
-          <button className="btn-icon" style={{ width: '32px', height: '32px' }} onClick={onClose}>
+          <button className="btn-icon" style={{ width: '32px', height: '32px' }} onClick={onClose} disabled={loading}>
             <X size={16} />
           </button>
         </div>
@@ -56,6 +56,7 @@ export default function JoinRoomModal({ isOpen, onClose, onJoinRoom }) {
                 className="form-input"
                 placeholder="e.g. A1B2C3D4"
                 value={roomCode}
+                disabled={loading}
                 onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
                 maxLength={12}
               />
@@ -63,10 +64,24 @@ export default function JoinRoomModal({ isOpen, onClose, onJoinRoom }) {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '20px' }}>
-            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary" style={{ width: 'auto' }} disabled={loading}>
-              <LogIn size={16} />
-              <span>{loading ? 'Joining...' : 'Join Group'}</span>
+            <button type="button" className="btn-secondary" onClick={onClose} disabled={loading}>Cancel</button>
+            <button
+              type="submit"
+              className="btn-primary"
+              style={{ width: 'auto', opacity: loading ? 0.75 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <Loader2 size={16} className="spinner-icon" />
+                  <span>Joining...</span>
+                </>
+              ) : (
+                <>
+                  <LogIn size={16} />
+                  <span>Join Group</span>
+                </>
+              )}
             </button>
           </div>
         </form>
