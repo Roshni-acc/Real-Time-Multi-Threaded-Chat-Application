@@ -2,8 +2,17 @@ from pymongo import MongoClient
 from datetime import datetime, timezone
 from server.config import MONGO_URI, DATABASE_NAME
 
+try:
+    import certifi
+    ca_file = certifi.where()
+except ImportError:
+    ca_file = None
+
 def get_db():
-    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+    kwargs = {"serverSelectionTimeoutMS": 5000}
+    if ca_file and MONGO_URI.startswith("mongodb+srv"):
+        kwargs["tlsCAFile"] = ca_file
+    client = MongoClient(MONGO_URI, **kwargs)
     return client[DATABASE_NAME]
 
 # Function to create a new user (Registration)

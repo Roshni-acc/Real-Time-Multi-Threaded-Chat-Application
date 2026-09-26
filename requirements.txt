@@ -11,3 +11,4 @@ gunicorn==23.0.0
 eventlet>=0.35.0
 greenlet>=3.0.0
 dnspython>=2.0.0
+certifi>=2024.0.0
