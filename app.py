@@ -756,36 +756,59 @@ def kick_member_page(room_id, member_username):
     return api_kick_member(room_id, member_username)
 
 
+def send_async_email(app_obj, msg):
+    with app_obj.app_context():
+        try:
+            mail.send(msg)
+            print(f"[MAIL SUCCESS] Password reset email sent to {msg.recipients}", flush=True)
+        except Exception as e:
+            import traceback
+            print(f"[MAIL ERROR] Failed to send email to {msg.recipients}: {e}", flush=True)
+            traceback.print_exc()
+
+
 @app.route('/api/auth/forgot_password', methods=['POST'])
 def api_forgot_password():
     data = get_req_data()
     email = data.get('email', '').strip()
+    if not email:
+        return api_response(False, "Please enter your email address."), 400
+
     from server.database import get_db
-    db = get_db()
-    user = db.users.find_one({"email": email})
+    try:
+        db = get_db()
+        user = db.users.find_one({"email": email})
+    except Exception as e:
+        return handle_db_error(e, "FORGOT PASSWORD")
 
-    if user:
-        token = serializer.dumps(email, salt='password-reset-salt')
-        reset_url = url_for('reset_password_page', token=token, _external=True)
+    if not user:
+        return api_response(False, "We couldn't find an account registered with that email address."), 404
 
-        msg = Message('Password Reset Request', recipients=[email])
-        msg.body = (
-            f"Hello,\n\nYou requested a password reset. Click below:\n\n"
-            f"{reset_url}\n\nValid for 1 hour."
-        )
-        try:
-            mail.send(msg)
-            return api_response(
-                True, "Reset link sent! Please check your email inbox."
-            )
-        except Exception:
-            return api_response(
-                False, "Failed to send reset email. Check SMTP settings."
-            ), 500
-    else:
+    # Check if SMTP configuration is set
+    if not app.config.get('MAIL_USERNAME') or not app.config.get('MAIL_PASSWORD'):
+        print("[MAIL WARNING] MAIL_USERNAME or MAIL_PASSWORD not set in environment.", flush=True)
         return api_response(
-            False, "We couldn't find an account with that email."
-        ), 404
+            False,
+            "Email service is not configured yet. Please set MAIL_USERNAME and MAIL_PASSWORD (Gmail App Password) in Render environment variables."
+        ), 500
+
+    token = serializer.dumps(email, salt='password-reset-salt')
+    reset_url = url_for('reset_password_page', token=token, _external=True)
+
+    msg = Message('Password Reset Request - Chat App', recipients=[email])
+    msg.body = (
+        f"Hello {user.get('full_name', email)},\n\n"
+        f"We received a request to reset your password for your Multi-Threaded Chat Application account.\n\n"
+        f"Click the link below to reset your password:\n"
+        f"{reset_url}\n\n"
+        f"This link is valid for 1 hour. If you did not request this, please ignore this email.\n"
+    )
+
+    import threading
+    t = threading.Thread(target=send_async_email, args=(app._get_current_object(), msg), daemon=True)
+    t.start()
+
+    return api_response(True, "Password reset link sent! Please check your email inbox (including Spam folder).")
 
 
 @app.route('/forgot_password', methods=['GET', 'POST'])
