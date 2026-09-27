@@ -136,22 +136,26 @@ def handle_db_error(e, context="DATABASE"):
     if "serverselectiontimeouterror" in err_lower or "timed out" in err_lower or "timeout" in err_lower:
         return api_response(
             False,
-            "Database Connection Timeout: Unable to reach MongoDB Atlas. Please ensure '0.0.0.0/0' (Allow Access From Anywhere) is added in MongoDB Atlas -> Network Access."
+            "Database Connection Timeout: Unable to reach MongoDB Atlas. Please ensure '0.0.0.0/0' (Allow Access From Anywhere) is enabled in MongoDB Atlas -> Network Access."
         ), 500
     elif "operationfailure" in err_lower or "authentication failed" in err_lower or "bad auth" in err_lower:
         return api_response(
             False,
-            "Database Auth Failure: Incorrect database username or password in MONGO_URI configuration."
+            "Database Auth Failure: Invalid username or password in MONGO_URI configuration in Render."
         ), 500
-    elif "configurationerror" in err_lower:
+    elif "configurationerror" in err_lower or "dns" in err_lower or "nodename" in err_lower or "nxdomain" in err_lower:
         return api_response(
             False,
-            "Database Config Error: MONGO_URI format is invalid. Please check MONGO_URI in Render."
+            "Database Host Error: MONGO_URI cluster domain name is invalid or unresolvable. Please copy the connection string directly from MongoDB Atlas."
         ), 500
+
+    clean_msg = err_str.split('\n')[0] if '\n' in err_str else err_str
+    if len(clean_msg) > 140:
+        clean_msg = clean_msg[:137] + "..."
 
     return api_response(
         False,
-        "Database connection error. Please verify MONGO_URI & MongoDB Atlas Network Access (0.0.0.0/0)."
+        f"Database connection error: {clean_msg}"
     ), 500
 
 
@@ -291,12 +295,15 @@ def default_route():
 def api_auth_me():
     if session.get('logged_in') and session.get('username'):
         username = session.get('username')
-        user = login_user(username)
-        if user:
-            return api_response(True, "Authenticated", {
-                "user": format_user_data(user),
-                "active_room_id": session.get('room_id')
-            })
+        try:
+            user = login_user(username)
+            if user:
+                return api_response(True, "Authenticated", {
+                    "user": format_user_data(user),
+                    "active_room_id": session.get('room_id')
+                })
+        except Exception as e:
+            return handle_db_error(e, "AUTH ME")
     return api_response(False, "Not authenticated"), 401
 
 
