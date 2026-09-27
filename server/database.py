@@ -13,17 +13,34 @@ _client = None
 def get_db():
     global _client
     if _client is None:
+        kwargs = {
+            "serverSelectionTimeoutMS": 10000,
+            "connectTimeoutMS": 10000
+        }
+        if ca_file and MONGO_URI.startswith("mongodb+srv"):
+            kwargs["tlsCAFile"] = ca_file
+
         try:
-            kwargs = {
-                "serverSelectionTimeoutMS": 10000,
-                "connectTimeoutMS": 10000
-            }
-            if ca_file and MONGO_URI.startswith("mongodb+srv"):
-                kwargs["tlsCAFile"] = ca_file
-            _client = MongoClient(MONGO_URI, **kwargs)
-        except Exception as e:
+            client_inst = MongoClient(MONGO_URI, **kwargs)
+            client_inst.admin.command('ping')
+            _client = client_inst
+        except Exception as err:
+            if MONGO_URI.startswith("mongodb+srv"):
+                try:
+                    fallback_kwargs = {
+                        "serverSelectionTimeoutMS": 10000,
+                        "connectTimeoutMS": 10000,
+                        "tlsAllowInvalidCertificates": True
+                    }
+                    client_inst = MongoClient(MONGO_URI, **fallback_kwargs)
+                    client_inst.admin.command('ping')
+                    _client = client_inst
+                    return _client[DATABASE_NAME]
+                except Exception:
+                    pass
             _client = None
-            raise e
+            raise err
+
     return _client[DATABASE_NAME]
 
 # Function to create a new user (Registration)
