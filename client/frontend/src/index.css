@@ -200,6 +200,20 @@ body {
   box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
 }
 
+.input-error {
+  border-color: var(--danger) !important;
+  background: rgba(239, 68, 68, 0.04) !important;
+}
+
+.custom-field-error {
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: 4px;
+  display: block;
+  animation: fadeIn 0.2s ease;
+}
+
 .btn-primary {
   width: 100%;
   padding: 14px;
@@ -773,5 +787,42 @@ body {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* Responsive Media Queries */
+@media (max-width: 480px) {
+  .auth-wrapper {
+    padding: 12px;
+  }
+
+  .auth-card {
+    padding: 24px 18px;
+    border-radius: 18px;
+  }
+
+  .auth-title {
+    font-size: 20px;
+  }
+
+  .auth-subtitle {
+    font-size: 13px;
+  }
+
+  .modal-content {
+    padding: 20px 16px;
+    border-radius: 16px;
+  }
+
+  .call-overlay {
+    width: calc(100vw - 32px);
+    right: 16px;
+    left: 16px;
+    top: 16px;
+  }
+
+  .btn-primary {
+    padding: 12px;
+    font-size: 14px;
+  }
 }
 

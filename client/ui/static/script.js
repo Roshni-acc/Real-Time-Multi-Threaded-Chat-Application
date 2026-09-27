@@ -606,21 +606,37 @@ document.addEventListener("DOMContentLoaded", () => {
             let hasError = false;
             form.querySelectorAll('input[required]').forEach(input => {
                 if (!input.value.trim()) {
-                    showError(form, input.name, "This field is required.");
+                    const labelName = form.querySelector(`label[for="${input.name}"]`)?.textContent || "This field";
+                    showError(form, input.name, `${labelName} is required.`);
                     hasError = true;
                 }
             });
 
-            if (action === "/register") {
-                const email = formData.get("email");
-                if (email && (!email.includes("@") || !email.includes("."))) {
-                    showError(form, "email", "Please enter a valid email address.");
+            const emailInput = formData.get("email");
+            if (emailInput !== null) {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailInput.trim()) {
+                    showError(form, "email", "Email address is required.");
+                    hasError = true;
+                } else if (!emailRegex.test(emailInput.trim())) {
+                    showError(form, "email", "Please enter a valid email address (e.g. name@example.com).");
                     hasError = true;
                 }
+            }
+
+            const passInput = formData.get("password");
+            if (passInput !== null && action === "/register") {
+                if (passInput.length < 6) {
+                    showError(form, "password", "Password must be at least 6 characters long.");
+                    hasError = true;
+                }
+            }
+
+            if (action === "/register") {
                 const pass = formData.get("password");
                 const confirm = formData.get("confirm_password");
                 if (pass !== confirm) {
-                    showError(form, "confirm_password", "Passwords do not match.");
+                    showError(form, "confirm_password", "Passwords do not match. Please re-enter.");
                     hasError = true;
                 }
             }

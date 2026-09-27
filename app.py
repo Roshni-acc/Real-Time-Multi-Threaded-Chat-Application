@@ -126,6 +126,35 @@ def api_response(status, message, data=None):
     })
 
 
+def handle_db_error(e, context="DATABASE"):
+    import traceback
+    print(f"[{context} ERROR] Exception details: {e}", flush=True)
+    traceback.print_exc()
+    err_str = str(e)
+    err_lower = err_str.lower()
+
+    if "serverselectiontimeouterror" in err_lower or "timed out" in err_lower or "timeout" in err_lower:
+        return api_response(
+            False,
+            "Database Connection Timeout: Unable to reach MongoDB Atlas. Please ensure '0.0.0.0/0' (Allow Access From Anywhere) is added in MongoDB Atlas -> Network Access."
+        ), 500
+    elif "operationfailure" in err_lower or "authentication failed" in err_lower or "bad auth" in err_lower:
+        return api_response(
+            False,
+            "Database Auth Failure: Incorrect database username or password in MONGO_URI configuration."
+        ), 500
+    elif "configurationerror" in err_lower:
+        return api_response(
+            False,
+            "Database Config Error: MONGO_URI format is invalid. Please check MONGO_URI in Render."
+        ), 500
+
+    return api_response(
+        False,
+        "Database connection error. Please verify MONGO_URI & MongoDB Atlas Network Access (0.0.0.0/0)."
+    ), 500
+
+
 def format_user_data(user):
     if not user:
         return None
@@ -188,10 +217,7 @@ def handle_register_logic(data):
 
         register_user(username, hashed_password, full_name, email, default_dp)
     except Exception as e:
-        print(f"[AUTH REGISTER ERROR] Database error: {e}")
-        return api_response(
-            False, "Database connection error. Please check MONGO_URI configuration in Render."
-        ), 500
+        return handle_db_error(e, "AUTH REGISTER")
 
     session['logged_in'] = True
     session['username'] = username
@@ -225,10 +251,7 @@ def handle_login_logic(data):
     try:
         user = login_user(identifier)
     except Exception as e:
-        print(f"[AUTH LOGIN ERROR] Database error: {e}")
-        return api_response(
-            False, "Database connection error. Please check MONGO_URI configuration in Render."
-        ), 500
+        return handle_db_error(e, "AUTH LOGIN")
 
     if user:
         if check_password_hash(user['password_hash'], password):

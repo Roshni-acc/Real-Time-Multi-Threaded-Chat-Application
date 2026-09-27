@@ -9,7 +9,10 @@ except ImportError:
     ca_file = None
 
 def get_db():
-    kwargs = {"serverSelectionTimeoutMS": 5000}
+    kwargs = {
+        "serverSelectionTimeoutMS": 10000,
+        "connectTimeoutMS": 10000
+    }
     if ca_file and MONGO_URI.startswith("mongodb+srv"):
         kwargs["tlsCAFile"] = ca_file
     client = MongoClient(MONGO_URI, **kwargs)

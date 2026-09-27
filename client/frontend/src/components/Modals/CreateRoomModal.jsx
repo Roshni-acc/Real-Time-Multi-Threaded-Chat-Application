@@ -46,7 +46,7 @@ export default function CreateRoomModal({ isOpen, onClose, onCreateRoom }) {
           <div style={{ color: 'var(--danger)', fontSize: '13px', marginBottom: '12px' }}>{error}</div>
         )}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="form-group">
             <label className="form-label">Group Room Name</label>
             <div className="form-input-wrapper">

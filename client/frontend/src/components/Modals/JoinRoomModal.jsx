@@ -46,7 +46,7 @@ export default function JoinRoomModal({ isOpen, onClose, onJoinRoom }) {
           <div style={{ color: 'var(--danger)', fontSize: '13px', marginBottom: '12px' }}>{error}</div>
         )}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="form-group">
             <label className="form-label">8-Character Room Code</label>
             <div className="form-input-wrapper">

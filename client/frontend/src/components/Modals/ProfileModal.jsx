@@ -113,7 +113,7 @@ export default function ProfileModal({ isOpen, onClose, user, onUpdateProfile, o
           </span>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="form-group">
             <label className="form-label">Full Name</label>
             <div className="form-input-wrapper">
