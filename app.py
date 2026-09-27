@@ -1,5 +1,15 @@
-import eventlet
-eventlet.monkey_patch()
+import os
+import sys
+import warnings
+
+os.environ["PYTHONWARNINGS"] = "ignore"
+warnings.filterwarnings("ignore")
+
+try:
+    import eventlet
+    eventlet.monkey_patch()
+except ImportError:
+    pass
 
 import os
 import uuid
