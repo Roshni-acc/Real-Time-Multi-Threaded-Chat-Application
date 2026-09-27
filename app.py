@@ -133,7 +133,7 @@ def handle_db_error(e, context="DATABASE"):
     err_str = str(e)
     err_lower = err_str.lower()
 
-    if "serverselectiontimeouterror" in err_lower or "timed out" in err_lower or "timeout" in err_lower:
+    if "serverselectiontimeouterror" in err_lower or "timed out" in err_lower or "timeout" in err_lower or "recursion" in err_lower:
         return api_response(
             False,
             "Database Connection Timeout: Unable to reach MongoDB Atlas. Please ensure '0.0.0.0/0' (Allow Access From Anywhere) is enabled in MongoDB Atlas -> Network Access."

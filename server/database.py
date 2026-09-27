@@ -8,15 +8,23 @@ try:
 except ImportError:
     ca_file = None
 
+_client = None
+
 def get_db():
-    kwargs = {
-        "serverSelectionTimeoutMS": 10000,
-        "connectTimeoutMS": 10000
-    }
-    if ca_file and MONGO_URI.startswith("mongodb+srv"):
-        kwargs["tlsCAFile"] = ca_file
-    client = MongoClient(MONGO_URI, **kwargs)
-    return client[DATABASE_NAME]
+    global _client
+    if _client is None:
+        try:
+            kwargs = {
+                "serverSelectionTimeoutMS": 10000,
+                "connectTimeoutMS": 10000
+            }
+            if ca_file and MONGO_URI.startswith("mongodb+srv"):
+                kwargs["tlsCAFile"] = ca_file
+            _client = MongoClient(MONGO_URI, **kwargs)
+        except Exception as e:
+            _client = None
+            raise e
+    return _client[DATABASE_NAME]
 
 # Function to create a new user (Registration)
 def register_user(username, password_hash, full_name, email, profile_photo):
