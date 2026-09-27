@@ -102,6 +102,18 @@ def api_ping():
     return api_response(True, "pong", {"timestamp": datetime.now(timezone.utc).isoformat()})
 
 
+@app.route('/api/test_db', methods=['GET'])
+def api_test_db():
+    try:
+        from server.database import get_db
+        from server.config import DATABASE_NAME
+        db = get_db()
+        db.command('ping')
+        return api_response(True, "Database connection successful!", {"database": DATABASE_NAME})
+    except Exception as e:
+        return handle_db_error(e, "TEST DB")
+
+
 @app.template_filter('to_ist')
 def to_ist(dt):
     if not dt:
