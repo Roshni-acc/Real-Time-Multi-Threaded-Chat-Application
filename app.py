@@ -148,7 +148,7 @@ def handle_db_error(e, context="DATABASE"):
     if "serverselectiontimeouterror" in err_lower or "timed out" in err_lower or "timeout" in err_lower or "recursion" in err_lower:
         return api_response(
             False,
-            "Database Connection Timeout: Unable to reach MongoDB Atlas. Please ensure '0.0.0.0/0' (Allow Access From Anywhere) is enabled in MongoDB Atlas -> Network Access."
+            "Database Connection Timeout: Unable to reach MongoDB cluster within 10 seconds. Check: 1) Is your Atlas cluster PAUSED? 2) Is your ISP/firewall/VPN blocking port 27017 or DNS? 3) Is MONGO_URI string exact?"
         ), 500
     elif "operationfailure" in err_lower or "authentication failed" in err_lower or "bad auth" in err_lower:
         return api_response(
@@ -159,6 +159,11 @@ def handle_db_error(e, context="DATABASE"):
         return api_response(
             False,
             "Database Host Error: MONGO_URI cluster domain name is invalid or unresolvable. Please copy the connection string directly from MongoDB Atlas."
+        ), 500
+    elif "key=value pairs" in err_lower or "invaliduri" in err_lower:
+        return api_response(
+            False,
+            "Database URI Format Error: Options after '?' in MONGO_URI must be key=value pairs (e.g. ?retryWrites=true&w=majority). Ensure no trailing '?' or missing '=true'."
         ), 500
 
     clean_msg = err_str.split('\n')[0] if '\n' in err_str else err_str
