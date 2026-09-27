@@ -16,6 +16,41 @@ export default function Sidebar({
   onCloseMobileSidebar
 }) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = localStorage.getItem('chat_sidebar_width');
+    return saved ? parseInt(saved, 10) : 320;
+  });
+  const [isResizing, setIsResizing] = useState(false);
+
+  const startResizing = (e) => {
+    e.preventDefault();
+    setIsResizing(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const onMouseMove = (moveEvent) => {
+      // Constrain sidebar width between 220px (min) and 480px (max)
+      const newWidth = Math.min(Math.max(moveEvent.clientX, 220), 480);
+      setSidebarWidth(newWidth);
+      localStorage.setItem('chat_sidebar_width', newWidth.toString());
+    };
+
+    const onMouseUp = () => {
+      setIsResizing(false);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  const handleResetWidth = () => {
+    setSidebarWidth(320);
+    localStorage.setItem('chat_sidebar_width', '320');
+  };
 
   const filteredRooms = rooms.filter(r =>
     r.room_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -23,7 +58,20 @@ export default function Sidebar({
   );
 
   return (
-    <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
+    <aside
+      className={`sidebar ${isOpen ? 'open' : ''}`}
+      style={{
+        width: `${sidebarWidth}px`,
+        flexShrink: 0,
+        position: 'relative'
+      }}
+    >
+      <div
+        className={`sidebar-resizer ${isResizing ? 'resizing' : ''}`}
+        onMouseDown={startResizing}
+        onDoubleClick={handleResetWidth}
+        title="Drag left/right to resize sidebar (Double-click to reset)"
+      />
       <div className="sidebar-header">
         <div className="sidebar-user" onClick={onOpenProfileModal}>
           <img
