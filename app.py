@@ -435,12 +435,23 @@ def api_get_room_detail(room_id):
     for msg in messages:
         msg['_id'] = str(msg['_id'])
         if 'timestamp' in msg and msg['timestamp']:
-            ist_dt = msg['timestamp'] + timedelta(hours=5, minutes=30)
-            msg['time_formatted'] = ist_dt.strftime('%H:%M')
-            msg['timestamp'] = msg['timestamp'].isoformat()
+            ts = msg['timestamp']
+            try:
+                if isinstance(ts, datetime):
+                    ist_dt = ts + timedelta(hours=5, minutes=30)
+                    msg['time_formatted'] = ist_dt.strftime('%H:%M')
+                    msg['timestamp'] = ts.isoformat()
+                elif isinstance(ts, str):
+                    msg['time_formatted'] = ts[11:16] if len(ts) >= 16 else 'IST'
+                    msg['timestamp'] = ts
+                else:
+                    msg['time_formatted'] = 'IST'
+                    msg['timestamp'] = str(ts)
+            except Exception:
+                msg['time_formatted'] = 'IST'
 
-        user = login_user(msg.get('sender', ''))
-        msg['profile_photo'] = user['profile_photo'] if user else '2.jpg'
+        user = login_user(msg.get('sender', '')) if msg.get('sender') else None
+        msg['profile_photo'] = user['profile_photo'] if (user and isinstance(user, dict) and user.get('profile_photo')) else '2.jpg'
         dp = msg['profile_photo']
         if not dp.startswith('/static/'):
             dp = f"/static/uploads/{dp}"

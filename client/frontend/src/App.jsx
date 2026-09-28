@@ -136,6 +136,29 @@ export default function App() {
     };
   }, [user]);
 
+  const fetchRoomDetail = async (roomIdToFetch) => {
+    const targetRoomId = roomIdToFetch || activeRoomId;
+    if (!targetRoomId || !user) return;
+
+    try {
+      const res = await fetch(`/api/rooms/${targetRoomId}`);
+      const data = await res.json();
+      if (data.status) {
+        setCurrentRoom(data.data.room);
+        setMembers(data.data.members || []);
+        setMessages(data.data.messages || []);
+
+        if (socketRef.current) {
+          socketRef.current.emit('join', { room: targetRoomId });
+        }
+      } else {
+        showToast(data.message || 'Failed to load room details', 'error');
+      }
+    } catch (err) {
+      console.error("Fetch room detail error:", err);
+    }
+  };
+
   // 3. Fetch Rooms
   const fetchRooms = async () => {
     if (!user) return;
@@ -143,9 +166,13 @@ export default function App() {
       const res = await fetch('/api/rooms');
       const data = await res.json();
       if (data.status) {
-        setRooms(data.data.rooms || []);
-        if (!activeRoomId && data.data.rooms.length > 0) {
-          setActiveRoomId(data.data.rooms[0]._id);
+        const roomList = data.data.rooms || [];
+        setRooms(roomList);
+        const targetId = activeRoomId || data.data.active_room_id || (roomList.length > 0 ? roomList[0]._id : null);
+        if (targetId && targetId !== activeRoomId) {
+          setActiveRoomId(targetId);
+        } else if (targetId && !currentRoom) {
+          fetchRoomDetail(targetId);
         }
       }
     } catch (err) {
@@ -159,32 +186,15 @@ export default function App() {
 
   // 4. Fetch Active Room Details when activeRoomId changes
   useEffect(() => {
-    if (!activeRoomId || !user) return;
-
-    const fetchRoomDetail = async () => {
-      try {
-        const res = await fetch(`/api/rooms/${activeRoomId}`);
-        const data = await res.json();
-        if (data.status) {
-          setCurrentRoom(data.data.room);
-          setMembers(data.data.members || []);
-          setMessages(data.data.messages || []);
-
-          if (socketRef.current) {
-            socketRef.current.emit('join', { room: activeRoomId });
-          }
-        }
-      } catch (err) {
-        console.error("Fetch room detail error:", err);
-      }
-    };
-
-    fetchRoomDetail();
+    if (activeRoomId && user) {
+      fetchRoomDetail(activeRoomId);
+    }
   }, [activeRoomId, user]);
 
   // Actions
   const handleSelectRoom = (roomId) => {
     setActiveRoomId(roomId);
+    fetchRoomDetail(roomId);
   };
 
   const handleSendMessage = (type, messageText, fileInfo = null) => {
@@ -209,6 +219,7 @@ export default function App() {
       await fetchRooms();
       if (data.data.room_id) {
         setActiveRoomId(data.data.room_id);
+        fetchRoomDetail(data.data.room_id);
       }
     }
     return data;
@@ -226,6 +237,7 @@ export default function App() {
       await fetchRooms();
       if (data.data.room_id) {
         setActiveRoomId(data.data.room_id);
+        fetchRoomDetail(data.data.room_id);
       }
     }
     return data;
