@@ -17,8 +17,13 @@ export default function Sidebar({
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const saved = localStorage.getItem('chat_sidebar_width');
-    return saved ? parseInt(saved, 10) : 320;
+    try {
+      const saved = localStorage.getItem('chat_sidebar_width');
+      const parsed = saved ? parseInt(saved, 10) : 320;
+      return (isNaN(parsed) || parsed < 200 || parsed > 600) ? 320 : parsed;
+    } catch (e) {
+      return 320;
+    }
   });
   const [isResizing, setIsResizing] = useState(false);
 
@@ -61,7 +66,7 @@ export default function Sidebar({
     <aside
       className={`sidebar ${isOpen ? 'open' : ''}`}
       style={{
-        width: typeof window !== 'undefined' && window.innerWidth <= 768 ? undefined : `${sidebarWidth}px`,
+        width: `${sidebarWidth}px`,
         flexShrink: 0,
         position: 'relative'
       }}
