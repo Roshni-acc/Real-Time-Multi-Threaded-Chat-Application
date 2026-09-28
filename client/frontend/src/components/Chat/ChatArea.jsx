@@ -102,11 +102,41 @@ export default function ChatArea({
 
   if (!currentRoom) {
     return (
-      <div className="chat-area" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
-          <Menu size={48} style={{ marginBottom: '12px', opacity: 0.5 }} />
-          <h3>Select or Create a Chat Group</h3>
-          <p style={{ fontSize: '13px', marginTop: '6px' }}>Choose a room from the sidebar to start chatting</p>
+      <div className="chat-area" style={{ display: 'flex', flexDirection: 'column' }}>
+        <div className="chat-header mobile-only" style={{ borderBottom: '1px solid var(--border-color)', padding: '12px 16px' }}>
+          <button className="btn-icon mobile-only" onClick={onToggleMobileSidebar} title="Toggle Sidebar">
+            <Menu size={20} />
+          </button>
+          <span style={{ fontWeight: '600', fontSize: '15px' }}>Multi-Threaded Chat</span>
+        </div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+          <div style={{ textAlign: 'center', color: 'var(--text-secondary)', maxWidth: '360px' }}>
+            <div style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '20px',
+              background: 'var(--bg-tertiary)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '16px',
+              color: 'var(--accent-primary)'
+            }}>
+              <MessageSquare size={32} />
+            </div>
+            <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-primary)' }}>Select or Create a Chat Group</h3>
+            <p style={{ fontSize: '13px', marginTop: '8px', lineHeight: '1.5', color: 'var(--text-secondary)' }}>
+              Choose a room from the sidebar or open the menu to start messaging right away.
+            </p>
+            <button
+              className="btn-primary mobile-only"
+              style={{ marginTop: '20px', width: '100%', justifyContent: 'center' }}
+              onClick={onToggleMobileSidebar}
+            >
+              <Menu size={18} />
+              <span>Open Group Sidebar</span>
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -119,7 +149,7 @@ export default function ChatArea({
       {/* Header */}
       <div className="chat-header">
         <div className="header-left">
-          <button className="btn-icon mobile-only" onClick={onToggleMobileSidebar}>
+          <button className="btn-icon mobile-only" onClick={onToggleMobileSidebar} title="Open Sidebar">
             <Menu size={20} />
           </button>
 
@@ -165,7 +195,7 @@ export default function ChatArea({
             title="Ask AI Assistant"
           >
             <Sparkles size={14} />
-            <span>@AI Bot</span>
+            <span className="btn-text">@AI Bot</span>
           </button>
           <button className="btn-icon" onClick={() => onStartCall('voice')} title="Voice Call">
             <Phone size={18} />

@@ -15,8 +15,10 @@ export default function MemberListDrawer({
   const isAdmin = currentRoom?.admins?.includes(user?.username);
 
   return (
-    <div className="member-drawer">
-      <div className="member-header">
+    <>
+      <div className="drawer-backdrop mobile-only" onClick={onClose} />
+      <div className="member-drawer">
+        <div className="member-header">
         <span>Room Members ({members.length})</span>
         <button className="btn-icon" style={{ width: '32px', height: '32px' }} onClick={onClose}>
           <X size={16} />
@@ -75,6 +77,7 @@ export default function MemberListDrawer({
           );
         })}
       </div>
-    </div>
+      </div>
+    </>
   );
 }

@@ -61,7 +61,7 @@ export default function Sidebar({
     <aside
       className={`sidebar ${isOpen ? 'open' : ''}`}
       style={{
-        width: `${sidebarWidth}px`,
+        width: typeof window !== 'undefined' && window.innerWidth <= 768 ? undefined : `${sidebarWidth}px`,
         flexShrink: 0,
         position: 'relative'
       }}

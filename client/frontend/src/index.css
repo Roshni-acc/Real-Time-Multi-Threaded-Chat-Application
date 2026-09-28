@@ -829,7 +829,124 @@ body {
   to { transform: rotate(360deg); }
 }
 
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+/* Mobile & Drawer Utilities */
+.mobile-only {
+  display: none !important;
+}
+
+.mobile-backdrop,
+.drawer-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  z-index: 25;
+  animation: fadeIn 0.2s ease;
+}
+
+.btn-text {
+  display: inline;
+}
+
 /* Responsive Media Queries */
+@media (max-width: 768px) {
+  .mobile-only {
+    display: inline-flex !important;
+  }
+
+  .sidebar {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 290px !important;
+    max-width: 85vw;
+    z-index: 30;
+    box-shadow: var(--shadow-lg);
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .sidebar.open {
+    transform: translateX(0) !important;
+  }
+
+  .sidebar-resizer {
+    display: none !important;
+  }
+
+  .member-drawer {
+    position: fixed !important;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 290px !important;
+    max-width: 85vw;
+    z-index: 30;
+    box-shadow: var(--shadow-lg);
+    animation: slideInRight 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .chat-header {
+    padding: 12px 14px;
+    gap: 8px;
+  }
+
+  .chat-title {
+    font-size: 15px;
+    max-width: 160px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .header-actions {
+    gap: 4px;
+  }
+
+  .header-actions .btn-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .message-wrapper {
+    max-width: 85%;
+  }
+
+  .message-stream {
+    padding: 14px 12px;
+    gap: 12px;
+  }
+
+  .chat-input-bar {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 580px) {
+  .btn-text {
+    display: none !important;
+  }
+
+  .chat-title {
+    max-width: 120px;
+  }
+
+  .message-wrapper {
+    max-width: 90%;
+  }
+}
+
 @media (max-width: 480px) {
   .auth-wrapper {
     padding: 12px;
@@ -851,6 +968,8 @@ body {
   .modal-content {
     padding: 20px 16px;
     border-radius: 16px;
+    max-height: 90vh;
+    overflow-y: auto;
   }
 
   .call-overlay {
@@ -865,4 +984,5 @@ body {
     font-size: 14px;
   }
 }
+
 

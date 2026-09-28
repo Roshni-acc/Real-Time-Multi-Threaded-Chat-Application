@@ -481,6 +481,10 @@ export default function App() {
         </div>
       )}
 
+      {isMobileSidebarOpen && (
+        <div className="mobile-backdrop" onClick={() => setIsMobileSidebarOpen(false)} />
+      )}
+
       <Sidebar
         user={user}
         rooms={rooms}
