@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Send, Paperclip, Smile, Phone, Video, Users, Copy, Check,
-  Edit2, Trash2, LogOut, Menu, FileText, Image as ImageIcon, Bot, Sparkles, Plus, Hash, ShieldCheck, Zap
+  Edit2, Trash2, LogOut, Menu, FileText, Image as ImageIcon, Bot, Sparkles, Plus, Hash, ShieldCheck, Zap, ArrowLeft
 } from 'lucide-react';
 
 export default function ChatArea({
@@ -19,6 +19,7 @@ export default function ChatArea({
   onLeaveRoom,
   onOpenCreateModal,
   onOpenJoinModal,
+  onBackToRooms,
   showToast
 }) {
   const [inputText, setInputText] = useState('');
@@ -107,8 +108,8 @@ export default function ChatArea({
     return (
       <div className="chat-area" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         <div className="chat-header mobile-only" style={{ borderBottom: '1px solid var(--border-color)', padding: '12px 16px' }}>
-          <button className="btn-icon mobile-only" onClick={onToggleMobileSidebar} title="Open Sidebar Menu">
-            <Menu size={20} />
+          <button className="btn-icon mobile-only mobile-back-btn" onClick={onBackToRooms} title="Back to Chats List">
+            <ArrowLeft size={20} />
           </button>
           <span style={{ fontWeight: '600', fontSize: '15px' }}>Multi-Threaded Workspace</span>
         </div>
@@ -224,10 +225,10 @@ export default function ChatArea({
             <button
               className="btn-primary mobile-only"
               style={{ marginTop: '24px', width: '100%', justifyContent: 'center' }}
-              onClick={onToggleMobileSidebar}
+              onClick={onBackToRooms}
             >
-              <Menu size={18} />
-              <span>Browse All Chat Groups</span>
+              <ArrowLeft size={18} />
+              <span>Back to Chats List</span>
             </button>
           </div>
         </div>
@@ -244,8 +245,8 @@ export default function ChatArea({
       {/* Header */}
       <div className="chat-header">
         <div className="header-left">
-          <button className="btn-icon mobile-only" onClick={onToggleMobileSidebar} title="Open Sidebar Menu">
-            <Menu size={20} />
+          <button className="btn-icon mobile-only mobile-back-btn" onClick={onBackToRooms} title="Back to Chats List">
+            <ArrowLeft size={20} />
           </button>
 
           <div className="chat-title-group">

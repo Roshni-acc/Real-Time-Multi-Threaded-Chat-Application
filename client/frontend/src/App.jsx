@@ -25,6 +25,9 @@ export default function App() {
   const [members, setMembers] = useState([]);
   const [messages, setMessages] = useState([]);
 
+  // Mobile Screen Switching State ('sidebar' | 'chat')
+  const [mobileView, setMobileView] = useState('sidebar');
+
   // Modals & Panels
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -65,6 +68,7 @@ export default function App() {
           setUser(data.data.user);
           if (data.data.active_room_id) {
             setActiveRoomId(data.data.active_room_id);
+            setMobileView('chat');
           }
         }
       } catch (err) {
@@ -101,6 +105,7 @@ export default function App() {
       fetchRooms();
       setCurrentRoom(null);
       setActiveRoomId(null);
+      setMobileView('sidebar');
     });
 
     socket.on('user_kicked', (data) => {
@@ -109,6 +114,7 @@ export default function App() {
         fetchRooms();
         setCurrentRoom(null);
         setActiveRoomId(null);
+        setMobileView('sidebar');
       }
     });
 
@@ -201,6 +207,7 @@ export default function App() {
   const handleSelectRoom = (roomId) => {
     setActiveRoomId(roomId);
     fetchRoomDetail(roomId);
+    setMobileView('chat');
   };
 
   const handleSendMessage = (type, messageText, fileInfo = null) => {
@@ -226,6 +233,7 @@ export default function App() {
       if (data.data.room_id) {
         setActiveRoomId(data.data.room_id);
         fetchRoomDetail(data.data.room_id);
+        setMobileView('chat');
       }
     }
     return data;
@@ -244,6 +252,7 @@ export default function App() {
       if (data.data.room_id) {
         setActiveRoomId(data.data.room_id);
         fetchRoomDetail(data.data.room_id);
+        setMobileView('chat');
       }
     }
     return data;
@@ -295,6 +304,7 @@ export default function App() {
       fetchRooms();
       setCurrentRoom(null);
       setActiveRoomId(null);
+      setMobileView('sidebar');
     }
   };
 
@@ -306,6 +316,7 @@ export default function App() {
       fetchRooms();
       setCurrentRoom(null);
       setActiveRoomId(null);
+      setMobileView('sidebar');
     }
   };
 
@@ -355,6 +366,7 @@ export default function App() {
       setCurrentRoom(null);
       setRooms([]);
       setActiveRoomId(null);
+      setMobileView('sidebar');
     } catch (err) {
       console.error("Logout error:", err);
     } finally {
@@ -467,7 +479,7 @@ export default function App() {
   }
 
   return (
-    <div className="app-container">
+    <div className={`app-container mobile-view-${mobileView}`}>
       {toast && (
         <div style={{
           position: 'fixed',
@@ -521,6 +533,7 @@ export default function App() {
         onLeaveRoom={handleLeaveRoom}
         onOpenCreateModal={() => setIsCreateModalOpen(true)}
         onOpenJoinModal={() => setIsJoinModalOpen(true)}
+        onBackToRooms={() => setMobileView('sidebar')}
         showToast={showToast}
       />
 
