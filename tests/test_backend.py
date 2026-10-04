@@ -335,3 +335,79 @@ def test_ai_bot_query(client):
     # 4. Test Summarization with no messages
     res_sum_empty = handle_ai_bot_query("@ai summarize", "fake_room_id_empty")
     assert "no user messages" in res_sum_empty
+
+def test_auth_validation_and_error_handling(client):
+    # Missing fields registration test
+    resp = client.post('/api/auth/register', json={
+        'full_name': 'Incomplete User',
+        'email': 'incomplete@example.com'
+    })
+    assert resp.status_code == 400
+    assert resp.get_json()['status'] is False
+
+    # Password mismatch test
+    resp = client.post('/api/auth/register', json={
+        'full_name': 'Mismatch User',
+        'email': 'mismatch@example.com',
+        'username': 'mismatch_user',
+        'password': 'password123',
+        'confirm_password': 'different_password'
+    })
+    assert resp.status_code == 400
+
+    # Invalid email format test
+    resp = client.post('/api/auth/register', json={
+        'full_name': 'Bad Email',
+        'email': 'not-an-email',
+        'username': 'bad_email_user',
+        'password': 'password123',
+        'confirm_password': 'password123'
+    })
+    assert resp.status_code == 400
+
+    # Non-existent login
+    resp = client.post('/api/auth/login', json={
+        'username': 'non_existent_user_9999',
+        'password': 'password123'
+    })
+    assert resp.status_code == 404
+
+def test_room_permission_boundaries(client):
+    u1 = f"user1_{str(uuid.uuid4())[:6]}"
+    u2 = f"user2_{str(uuid.uuid4())[:6]}"
+
+    # Setup User 1 (Admin)
+    client.post('/api/auth/register', json={
+        'full_name': 'Owner User',
+        'email': f"{u1}@example.com",
+        'username': u1,
+        'password': 'password123',
+        'confirm_password': 'password123'
+    })
+    create_res = client.post('/api/rooms/create', json={'room_name': 'Protected Room'}).get_json()
+    room_id = create_res['data']['room_id']
+    room_code = create_res['data']['room_code']
+
+    # Logout User 1, Login User 2 (Regular Member)
+    client.post('/api/auth/logout')
+    client.post('/api/auth/register', json={
+        'full_name': 'Regular Member',
+        'email': f"{u2}@example.com",
+        'username': u2,
+        'password': 'password123',
+        'confirm_password': 'password123'
+    })
+    client.post('/api/rooms/join', json={'room_code': room_code})
+
+    # Non-admin attempts to rename room (should fail with 403)
+    rename_resp = client.post(f'/api/rooms/{room_id}/rename', json={'room_name': 'Hacked Name'})
+    assert rename_resp.status_code == 403
+
+    # Non-admin attempts to kick owner (should fail with 403)
+    kick_resp = client.post(f'/api/rooms/{room_id}/kick/{u1}')
+    assert kick_resp.status_code == 403
+
+    # Non-admin attempts to delete room (should fail with 403)
+    del_resp = client.delete(f'/api/rooms/{room_id}')
+    assert del_resp.status_code == 403
+

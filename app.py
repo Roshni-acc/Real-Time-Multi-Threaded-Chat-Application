@@ -1102,4 +1102,5 @@ def serve_static_or_react(path):
 
 # ---- MAIN APP ENTRY POINT ---- #
 if __name__ == "__main__":
-    socketio.run(app, port=5001, debug=True)
+    socketio.run(app, port=5001, debug=True, allow_unsafe_werkzeug=True)
+

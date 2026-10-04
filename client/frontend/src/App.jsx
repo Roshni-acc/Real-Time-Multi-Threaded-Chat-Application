@@ -52,7 +52,7 @@ export default function App() {
 
   const showToast = (message, type = 'info') => {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), 3500);
   };
 
   // 1. Initial Auth Check
@@ -80,7 +80,7 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
 
-    const socketUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    const socketUrl = (window.location.port === '5173')
       ? 'http://localhost:5001'
       : window.location.origin;
 
@@ -91,19 +91,21 @@ export default function App() {
     socketRef.current = socket;
 
     socket.on('message', (msg) => {
-      setMessages((prev) => [...prev, msg]);
+      if (msg) {
+        setMessages((prev) => [...prev, msg]);
+      }
     });
 
     socket.on('room_deleted', (data) => {
-      showToast(data.message, 'error');
+      if (showToast) showToast(data.message || 'Room was deleted', 'error');
       fetchRooms();
       setCurrentRoom(null);
       setActiveRoomId(null);
     });
 
     socket.on('user_kicked', (data) => {
-      if (data.username === user.username) {
-        showToast('You have been removed from the room.', 'error');
+      if (data && data.username === user.username) {
+        if (showToast) showToast('You have been removed from the room.', 'error');
         fetchRooms();
         setCurrentRoom(null);
         setActiveRoomId(null);
@@ -116,13 +118,13 @@ export default function App() {
     });
 
     socket.on('call-rejected', () => {
-      showToast('Call was declined', 'error');
+      if (showToast) showToast('Call was declined', 'error');
       setIncomingCall(null);
       setActiveCall(null);
     });
 
     socket.on('user-left-call', () => {
-      showToast('Call ended', 'info');
+      if (showToast) showToast('Call ended', 'info');
       setActiveCall(null);
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
@@ -153,6 +155,7 @@ export default function App() {
         }
       } else {
         showToast(data.message || 'Failed to load room details', 'error');
+        setCurrentRoom(null);
       }
     } catch (err) {
       console.error("Fetch room detail error:", err);
@@ -168,11 +171,14 @@ export default function App() {
       if (data.status) {
         const roomList = data.data.rooms || [];
         setRooms(roomList);
+
         const targetId = activeRoomId || data.data.active_room_id || (roomList.length > 0 ? roomList[0]._id : null);
-        if (targetId && targetId !== activeRoomId) {
-          setActiveRoomId(targetId);
-        } else if (targetId && !currentRoom) {
-          fetchRoomDetail(targetId);
+        if (targetId) {
+          if (targetId !== activeRoomId) {
+            setActiveRoomId(targetId);
+          } else if (!currentRoom) {
+            fetchRoomDetail(targetId);
+          }
         }
       }
     } catch (err) {
@@ -344,11 +350,11 @@ export default function App() {
     setIsLoggingOut(true);
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
-      // Small artificial delay for visual smoothness of transition loader
-      await new Promise((res) => setTimeout(res, 500));
+      await new Promise((res) => setTimeout(res, 400));
       setUser(null);
       setCurrentRoom(null);
       setRooms([]);
+      setActiveRoomId(null);
     } catch (err) {
       console.error("Logout error:", err);
     } finally {
@@ -470,12 +476,12 @@ export default function App() {
           transform: 'translateX(-50%)',
           zIndex: 999,
           background: toast.type === 'error' ? 'var(--danger)' : 'var(--accent-primary)',
-          color: '#fff',
-          padding: '10px 20px',
+          color: '#ffffff',
+          padding: '10px 22px',
           borderRadius: '30px',
           fontSize: '14px',
-          fontWeight: '500',
-          boxShadow: 'var(--shadow-md)'
+          fontWeight: '600',
+          boxShadow: 'var(--shadow-lg)'
         }}>
           {toast.message}
         </div>
@@ -513,6 +519,8 @@ export default function App() {
         onRenameRoom={handleRenameRoom}
         onDeleteRoom={handleDeleteRoom}
         onLeaveRoom={handleLeaveRoom}
+        onOpenCreateModal={() => setIsCreateModalOpen(true)}
+        onOpenJoinModal={() => setIsJoinModalOpen(true)}
         showToast={showToast}
       />
 

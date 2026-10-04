@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Send, Paperclip, Smile, Phone, Video, Users, Copy, Check,
-  Edit2, Trash2, LogOut, Menu, FileText, Image as ImageIcon, Bot, Sparkles
+  Edit2, Trash2, LogOut, Menu, FileText, Image as ImageIcon, Bot, Sparkles, Plus, Hash, ShieldCheck, Zap
 } from 'lucide-react';
 
 export default function ChatArea({
   currentRoom,
-  messages,
-  members,
+  messages = [],
+  members = [],
   user,
   onSendMessage,
   onUploadFile,
@@ -17,6 +17,8 @@ export default function ChatArea({
   onRenameRoom,
   onDeleteRoom,
   onLeaveRoom,
+  onOpenCreateModal,
+  onOpenJoinModal,
   showToast
 }) {
   const [inputText, setInputText] = useState('');
@@ -43,7 +45,7 @@ export default function ChatArea({
 
   useEffect(() => {
     if (currentRoom) {
-      setNewRoomName(currentRoom.room_name);
+      setNewRoomName(currentRoom.room_name || '');
       setIsEditingName(false);
     }
   }, [currentRoom]);
@@ -52,7 +54,7 @@ export default function ChatArea({
     if (currentRoom?.room_code) {
       navigator.clipboard.writeText(currentRoom.room_code);
       setCopied(true);
-      showToast('Room code copied to clipboard!');
+      if (showToast) showToast('Room code copied to clipboard!');
       setTimeout(() => setCopied(false), 2000);
     }
   };
@@ -78,12 +80,12 @@ export default function ChatArea({
       const res = await onUploadFile(file);
       if (res.status) {
         onSendMessage('file', file.name, { filename: res.data.filename, url: res.data.url });
-        showToast('File attached successfully!');
+        if (showToast) showToast('File attached successfully!');
       } else {
-        showToast(res.message || 'File upload failed', 'error');
+        if (showToast) showToast(res.message || 'File upload failed', 'error');
       }
     } catch (err) {
-      showToast('Failed to upload file', 'error');
+      if (showToast) showToast('Failed to upload file', 'error');
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -100,41 +102,132 @@ export default function ChatArea({
     setInputText((prev) => prev.startsWith('@ai') ? prev : `@ai summarize`);
   };
 
+  // Welcome Dashboard when no room is selected
   if (!currentRoom) {
     return (
-      <div className="chat-area" style={{ display: 'flex', flexDirection: 'column' }}>
+      <div className="chat-area" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         <div className="chat-header mobile-only" style={{ borderBottom: '1px solid var(--border-color)', padding: '12px 16px' }}>
-          <button className="btn-icon mobile-only" onClick={onToggleMobileSidebar} title="Toggle Sidebar">
+          <button className="btn-icon mobile-only" onClick={onToggleMobileSidebar} title="Open Sidebar Menu">
             <Menu size={20} />
           </button>
-          <span style={{ fontWeight: '600', fontSize: '15px' }}>Multi-Threaded Chat</span>
+          <span style={{ fontWeight: '600', fontSize: '15px' }}>Multi-Threaded Workspace</span>
         </div>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-          <div style={{ textAlign: 'center', color: 'var(--text-secondary)', maxWidth: '360px' }}>
+
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '32px 24px',
+          overflowY: 'auto'
+        }}>
+          <div style={{ maxWidth: '640px', width: '100%', textAlign: 'center' }}>
             <div style={{
-              width: '64px',
-              height: '64px',
-              borderRadius: '20px',
-              background: 'var(--bg-tertiary)',
+              width: '72px',
+              height: '72px',
+              borderRadius: '24px',
+              background: 'var(--accent-gradient)',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              marginBottom: '16px',
-              color: 'var(--accent-primary)'
+              marginBottom: '20px',
+              color: '#ffffff',
+              boxShadow: 'var(--shadow-lg)'
             }}>
-              <MessageSquare size={32} />
+              <Sparkles size={36} />
             </div>
-            <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-primary)' }}>Select or Create a Chat Group</h3>
-            <p style={{ fontSize: '13px', marginTop: '8px', lineHeight: '1.5', color: 'var(--text-secondary)' }}>
-              Choose a room from the sidebar or open the menu to start messaging right away.
+
+            <h2 style={{ fontSize: '26px', fontWeight: '800', letterSpacing: '-0.5px', marginBottom: '8px' }}>
+              Welcome, {user?.full_name || user?.username || 'User'}! 👋
+            </h2>
+            <p style={{ fontSize: '15px', color: 'var(--text-secondary)', marginBottom: '32px', lineHeight: '1.6' }}>
+              Select a group chat from the sidebar or get started immediately using the options below.
             </p>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+              gap: '16px',
+              marginBottom: '36px',
+              textAlign: 'left'
+            }}>
+              <div
+                className="glass-panel"
+                onClick={onOpenCreateModal}
+                style={{
+                  padding: '20px',
+                  borderRadius: '16px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  border: '1px solid var(--border-color)'
+                }}
+              >
+                <div style={{
+                  width: '40px', height: '40px', borderRadius: '12px',
+                  background: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent-primary)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px'
+                }}>
+                  <Plus size={20} />
+                </div>
+                <h4 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '4px' }}>Create New Group</h4>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                  Start a multi-threaded chat room for your team or project.
+                </p>
+              </div>
+
+              <div
+                className="glass-panel"
+                onClick={onOpenJoinModal}
+                style={{
+                  padding: '20px',
+                  borderRadius: '16px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  border: '1px solid var(--border-color)'
+                }}
+              >
+                <div style={{
+                  width: '40px', height: '40px', borderRadius: '12px',
+                  background: 'rgba(139, 92, 246, 0.15)', color: 'var(--accent-secondary)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px'
+                }}>
+                  <Hash size={20} />
+                </div>
+                <h4 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '4px' }}>Join via Room Code</h4>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                  Enter an 8-character invite code to join an existing group.
+                </p>
+              </div>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '20px',
+              flexWrap: 'wrap',
+              fontSize: '13px',
+              color: 'var(--text-muted)'
+            }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Zap size={15} style={{ color: '#f59e0b' }} /> Real-time Socket Messaging
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Bot size={15} style={{ color: 'var(--accent-primary)' }} /> @AI Bot Assistant
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <ShieldCheck size={15} style={{ color: 'var(--success)' }} /> Encrypted Audio/Video
+              </span>
+            </div>
+
             <button
               className="btn-primary mobile-only"
-              style={{ marginTop: '20px', width: '100%', justifyContent: 'center' }}
+              style={{ marginTop: '24px', width: '100%', justifyContent: 'center' }}
               onClick={onToggleMobileSidebar}
             >
               <Menu size={18} />
-              <span>Open Group Sidebar</span>
+              <span>Browse All Chat Groups</span>
             </button>
           </div>
         </div>
@@ -142,14 +235,16 @@ export default function ChatArea({
     );
   }
 
-  const isAdmin = currentRoom.admins?.includes(user?.username);
+  const safeMembers = Array.isArray(members) ? members : [];
+  const safeMessages = Array.isArray(messages) ? messages : [];
+  const isAdmin = Array.isArray(currentRoom.admins) && currentRoom.admins.includes(user?.username);
 
   return (
     <div className="chat-area">
       {/* Header */}
       <div className="chat-header">
         <div className="header-left">
-          <button className="btn-icon mobile-only" onClick={onToggleMobileSidebar} title="Open Sidebar">
+          <button className="btn-icon mobile-only" onClick={onToggleMobileSidebar} title="Open Sidebar Menu">
             <Menu size={20} />
           </button>
 
@@ -168,7 +263,7 @@ export default function ChatArea({
               </div>
             ) : (
               <div className="chat-title">
-                <span>{currentRoom.room_name}</span>
+                <span>{currentRoom.room_name || 'Group Chat'}</span>
                 {isAdmin && (
                   <button className="btn-icon" style={{ width: '28px', height: '28px' }} onClick={() => setIsEditingName(true)} title="Rename Room">
                     <Edit2 size={14} />
@@ -179,10 +274,10 @@ export default function ChatArea({
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
               <span className="room-code-badge" onClick={handleCopyCode} title="Click to copy room code">
-                Code: {currentRoom.room_code}
+                Code: {currentRoom.room_code || 'N/A'}
                 {copied ? <Check size={12} /> : <Copy size={12} />}
               </span>
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>• {members.length} members</span>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>• {safeMembers.length} {safeMembers.length === 1 ? 'member' : 'members'}</span>
             </div>
           </div>
         </div>
@@ -190,7 +285,7 @@ export default function ChatArea({
         <div className="header-actions">
           <button
             className="btn-secondary"
-            style={{ padding: '6px 12px', fontSize: '12px', gap: '4px', background: 'var(--accent-gradient)', color: '#fff', border: 'none' }}
+            style={{ padding: '6px 12px', fontSize: '12px', gap: '4px', background: 'var(--accent-gradient)', color: '#ffffff', border: 'none' }}
             onClick={handleAskAI}
             title="Ask AI Assistant"
           >
@@ -221,7 +316,8 @@ export default function ChatArea({
 
       {/* Message Feed */}
       <div className="message-stream">
-        {messages.map((msg, index) => {
+        {safeMessages.map((msg, index) => {
+          if (!msg) return null;
           const isSystem = msg.username === 'System' || msg.sender === 'System' || msg.message_type === 'system';
           const isAi = msg.username === 'AI Bot' || msg.sender === 'AI Bot' || msg.message_type === 'ai';
           const isOwn = msg.sender === user?.username || msg.username === user?.username;
@@ -229,14 +325,14 @@ export default function ChatArea({
           if (isSystem) {
             return (
               <div key={msg._id || index} className="system-message-wrapper">
-                <div className="system-message">{msg.message}</div>
+                <div className="system-message">{typeof msg.message === 'string' ? msg.message : 'System notification'}</div>
               </div>
             );
           }
 
           if (isAi) {
             return (
-              <div key={msg._id || index} className="message-wrapper" style={{ alignSelf: 'flex-start', maxWidth: '80%' }}>
+              <div key={msg._id || index} className="message-wrapper" style={{ alignSelf: 'flex-start', maxWidth: '85%' }}>
                 <div className="msg-header" style={{ color: 'var(--accent-secondary)' }}>
                   <div style={{
                     width: '24px', height: '24px', borderRadius: '50%', background: 'var(--accent-gradient)',
@@ -253,7 +349,7 @@ export default function ChatArea({
                   boxShadow: 'var(--shadow-md)',
                   whiteSpace: 'pre-wrap'
                 }}>
-                  <p>{msg.message}</p>
+                  <p>{typeof msg.message === 'string' ? msg.message : JSON.stringify(msg.message)}</p>
                   <span className="msg-time">{msg.time_formatted || 'IST'}</span>
                 </div>
               </div>
@@ -267,7 +363,7 @@ export default function ChatArea({
               {!isOwn && (
                 <div className="msg-header">
                   <img src={dpUrl} alt="DP" className="msg-avatar" onError={(e) => { e.target.src = '/static/uploads/2.jpg'; }} />
-                  <strong>{msg.username || msg.sender}</strong>
+                  <strong>{msg.username || msg.sender || 'User'}</strong>
                 </div>
               )}
 
@@ -283,11 +379,11 @@ export default function ChatArea({
                   </div>
                 ) : msg.message_type === 'call' ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontStyle: 'italic' }}>
-                    {msg.message.includes('video') ? <Video size={16} /> : <Phone size={16} />}
+                    {typeof msg.message === 'string' && msg.message.includes('video') ? <Video size={16} /> : <Phone size={16} />}
                     <span>{msg.message}</span>
                   </div>
                 ) : (
-                  <p>{msg.message}</p>
+                  <p>{typeof msg.message === 'string' ? msg.message : ''}</p>
                 )}
 
                 <span className="msg-time">{msg.time_formatted || 'IST'}</span>
@@ -361,7 +457,7 @@ export default function ChatArea({
           />
         </div>
 
-        <button className="btn-primary" style={{ width: '42px', height: '42px', padding: '0' }} onClick={handleSend}>
+        <button className="btn-primary" style={{ width: '42px', height: '42px', padding: '0' }} onClick={handleSend} title="Send Message">
           <Send size={18} />
         </button>
       </div>

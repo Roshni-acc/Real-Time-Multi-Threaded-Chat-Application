@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Plus, Hash, Search, LogOut, Sun, Moon, User, X, MessageSquare } from 'lucide-react';
+import { Plus, Hash, Search, LogOut, Sun, Moon, User, X, MessageSquare, Sparkles } from 'lucide-react';
 
 export default function Sidebar({
   user,
-  rooms,
+  rooms = [],
   activeRoomId,
   onSelectRoom,
   onOpenCreateModal,
@@ -20,7 +20,7 @@ export default function Sidebar({
     try {
       const saved = localStorage.getItem('chat_sidebar_width');
       const parsed = saved ? parseInt(saved, 10) : 320;
-      return (isNaN(parsed) || parsed < 200 || parsed > 600) ? 320 : parsed;
+      return (isNaN(parsed) || parsed < 220 || parsed > 480) ? 320 : parsed;
     } catch (e) {
       return 320;
     }
@@ -34,7 +34,6 @@ export default function Sidebar({
     document.body.style.userSelect = 'none';
 
     const onMouseMove = (moveEvent) => {
-      // Constrain sidebar width between 220px (min) and 480px (max)
       const newWidth = Math.min(Math.max(moveEvent.clientX, 220), 480);
       setSidebarWidth(newWidth);
       localStorage.setItem('chat_sidebar_width', newWidth.toString());
@@ -57,10 +56,14 @@ export default function Sidebar({
     localStorage.setItem('chat_sidebar_width', '320');
   };
 
-  const filteredRooms = rooms.filter(r =>
-    r.room_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (r.room_code && r.room_code.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const safeRooms = Array.isArray(rooms) ? rooms : [];
+  const filteredRooms = safeRooms.filter(r => {
+    if (!r) return false;
+    const name = (r.room_name || '').toLowerCase();
+    const code = (r.room_code || '').toLowerCase();
+    const query = (searchTerm || '').toLowerCase();
+    return name.includes(query) || code.includes(query);
+  });
 
   return (
     <aside
@@ -78,7 +81,7 @@ export default function Sidebar({
         title="Drag left/right to resize sidebar (Double-click to reset)"
       />
       <div className="sidebar-header">
-        <div className="sidebar-user" onClick={onOpenProfileModal}>
+        <div className="sidebar-user" onClick={onOpenProfileModal} title="Click to view & edit profile">
           <img
             src={user?.dp || '/static/uploads/2.jpg'}
             alt="DP"
@@ -86,20 +89,20 @@ export default function Sidebar({
             onError={(e) => { e.target.src = '/static/uploads/2.jpg'; }}
           />
           <div className="user-meta">
-            <span className="user-name">{user?.full_name || user?.username}</span>
+            <span className="user-name">{user?.full_name || user?.username || 'User'}</span>
             <span className="user-status">Online</span>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <button className="btn-icon" onClick={onToggleTheme} title="Toggle Theme">
+          <button className="btn-icon" onClick={onToggleTheme} title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}>
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
-          <button className="btn-icon" onClick={onLogout} title="Logout">
+          <button className="btn-icon" onClick={onLogout} title="Logout Cleanly">
             <LogOut size={18} />
           </button>
           {isOpen && (
-            <button className="btn-icon mobile-only" onClick={onCloseMobileSidebar}>
+            <button className="btn-icon mobile-only" onClick={onCloseMobileSidebar} title="Close Sidebar">
               <X size={18} />
             </button>
           )}
@@ -110,7 +113,10 @@ export default function Sidebar({
         <button
           className="btn-primary"
           style={{ flex: 1, padding: '10px 14px', fontSize: '13px' }}
-          onClick={onOpenCreateModal}
+          onClick={() => {
+            onOpenCreateModal();
+            if (onCloseMobileSidebar) onCloseMobileSidebar();
+          }}
         >
           <Plus size={16} />
           <span>New Group</span>
@@ -118,7 +124,10 @@ export default function Sidebar({
         <button
           className="btn-secondary"
           style={{ padding: '10px 14px', fontSize: '13px' }}
-          onClick={onOpenJoinModal}
+          onClick={() => {
+            onOpenJoinModal();
+            if (onCloseMobileSidebar) onCloseMobileSidebar();
+          }}
         >
           <Hash size={16} />
           <span>Join Code</span>
@@ -134,17 +143,66 @@ export default function Sidebar({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              style={{
+                position: 'absolute',
+                right: '10px',
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center'
+              }}
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
       </div>
 
       <div className="room-list">
         {filteredRooms.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '24px 12px', color: 'var(--text-muted)', fontSize: '13px' }}>
-            {searchTerm ? 'No rooms match your search' : 'No rooms joined yet. Create or join one!'}
+          <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-secondary)' }}>
+            <div style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '14px',
+              background: 'var(--bg-tertiary)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '12px',
+              color: 'var(--accent-primary)'
+            }}>
+              <MessageSquare size={24} />
+            </div>
+            <p style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px' }}>
+              {searchTerm ? 'No matching groups' : 'No Chat Groups Yet'}
+            </p>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+              {searchTerm ? 'Try searching another keyword' : 'Create a group or enter a room code to get started.'}
+            </p>
+            {!searchTerm && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <button
+                  className="btn-primary"
+                  style={{ fontSize: '12px', padding: '8px 12px' }}
+                  onClick={onOpenCreateModal}
+                >
+                  <Plus size={14} />
+                  <span>Create First Group</span>
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           filteredRooms.map((room) => {
+            if (!room || !room._id) return null;
             const isActive = room._id === activeRoomId;
+            const memberCount = Array.isArray(room.members) ? room.members.length : 1;
             return (
               <div
                 key={room._id}
@@ -155,11 +213,11 @@ export default function Sidebar({
                 }}
               >
                 <div className="room-info">
-                  <span className="room-name">{room.room_name}</span>
-                  <span className="room-code">Code: {room.room_code}</span>
+                  <span className="room-name">{room.room_name || 'Unnamed Group'}</span>
+                  <span className="room-code">Code: {room.room_code || 'N/A'}</span>
                 </div>
-                <div className="room-meta" style={{ fontSize: '11px', opacity: 0.7 }}>
-                  {room.members ? `${room.members.length} members` : ''}
+                <div className="room-meta" style={{ fontSize: '11px', opacity: 0.8, fontWeight: '500' }}>
+                  {memberCount} {memberCount === 1 ? 'member' : 'members'}
                 </div>
               </div>
             );
