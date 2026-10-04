@@ -118,6 +118,17 @@ export default function App() {
       }
     });
 
+    socket.on('force_logout', (data) => {
+      if (data && data.username === user.username) {
+        if (showToast) showToast('Logged out cleanly from another device.', 'error');
+        setUser(null);
+        setCurrentRoom(null);
+        setRooms([]);
+        setActiveRoomId(null);
+        setMobileView('sidebar');
+      }
+    });
+
     socket.on('call-started', (data) => {
       if (data.to && data.to !== user.username) return;
       setIncomingCall(data);
@@ -150,6 +161,12 @@ export default function App() {
 
     try {
       const res = await fetch(`/api/rooms/${targetRoomId}`);
+      if (res.status === 401) {
+        showToast('Session expired or logged out from another device.', 'error');
+        setUser(null);
+        setCurrentRoom(null);
+        return;
+      }
       const data = await res.json();
       if (data.status) {
         setCurrentRoom(data.data.room);
@@ -173,6 +190,12 @@ export default function App() {
     if (!user) return;
     try {
       const res = await fetch('/api/rooms');
+      if (res.status === 401) {
+        showToast('Session expired or logged out from another device.', 'error');
+        setUser(null);
+        setCurrentRoom(null);
+        return;
+      }
       const data = await res.json();
       if (data.status) {
         const roomList = data.data.rooms || [];

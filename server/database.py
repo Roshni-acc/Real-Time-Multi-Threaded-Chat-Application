@@ -43,18 +43,46 @@ def get_db():
 
     return _client[DATABASE_NAME]
 
+import uuid
+
 # Function to create a new user (Registration)
 def register_user(username, password_hash, full_name, email, profile_photo):
     db = get_db()
+    token = str(uuid.uuid4())
     user_data = {
         "username": username,
         "password_hash": password_hash,
         "full_name": full_name,
         "email": email,
         "profile_photo": profile_photo,
+        "session_token": token,
         "created_at": datetime.now(timezone.utc)
     }
-    return db.users.insert_one(user_data)
+    db.users.insert_one(user_data)
+    return token
+
+# Function to update and refresh session token in DB
+def update_session_token(username_or_email):
+    db = get_db()
+    token = str(uuid.uuid4())
+    db.users.update_one(
+        {"$or": [{"username": username_or_email}, {"email": username_or_email}]},
+        {"$set": {"session_token": token}}
+    )
+    return token
+
+# Function to verify if a given session token matches active DB token
+def verify_session_token(username_or_email, session_token):
+    if not username_or_email or not session_token:
+        return False
+    user = login_user(username_or_email)
+    if not user:
+        return False
+    db_token = user.get("session_token")
+    if not db_token:
+        update_session_token(user["username"])
+        return True
+    return db_token == session_token
 
 # Function to check login credentials
 def login_user(username_or_email):
@@ -67,6 +95,7 @@ def login_user(username_or_email):
         ]
     })
     return user
+
 
 # Function to store messages in the database
 def save_message(sender, message, room_id, message_type="text", file_info=None):

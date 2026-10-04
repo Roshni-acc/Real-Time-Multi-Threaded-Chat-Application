@@ -28,7 +28,8 @@ from server.database import (
     create_room, get_rooms, get_room_by_code, update_profile_photo,
     add_user_to_room, update_user_details, update_room_name,
     promote_to_admin, remove_user_from_room, update_user_password,
-    get_room_by_id, get_room_members, delete_room
+    get_room_by_id, get_room_members, delete_room,
+    update_session_token, verify_session_token
 )
 from server.config import (
     SECRET_KEY, MAIL_SERVER, MAIL_PORT, MAIL_USE_TLS,
@@ -199,8 +200,32 @@ def format_user_data(user):
         "username": user.get('username'),
         "full_name": user.get('full_name'),
         "email": user.get('email'),
-        "dp": dp
+        "dp": dp,
+        "session_token": user.get('session_token')
     }
+
+
+def verify_auth():
+    if not session.get('logged_in') or not session.get('username'):
+        return None, api_response(False, "Not authenticated"), 401
+    username = session.get('username')
+    session_token = session.get('session_token')
+    try:
+        user = login_user(username)
+        if not user:
+            session.clear()
+            return None, api_response(False, "User account not found."), 401
+        db_token = user.get('session_token')
+        if session_token and db_token and session_token != db_token:
+            session.clear()
+            return None, api_response(False, "Session expired or logged out from another device."), 401
+        if not db_token:
+            new_t = update_session_token(username)
+            session['session_token'] = new_t
+        return user, None, 200
+    except Exception as e:
+        res, code = handle_db_error(e, "VERIFY AUTH")
+        return None, res, code
 
 
 def serve_react_index():
@@ -249,7 +274,7 @@ def handle_register_logic(data):
         hashed_password = generate_password_hash(password)
         default_dp = "2.jpg"
 
-        register_user(username, hashed_password, full_name, email, default_dp)
+        token = register_user(username, hashed_password, full_name, email, default_dp)
     except Exception as e:
         return handle_db_error(e, "AUTH REGISTER")
 
@@ -257,17 +282,19 @@ def handle_register_logic(data):
     session['username'] = username
     session['full_name'] = full_name
     session['dp'] = f"/static/uploads/{default_dp}"
+    session['session_token'] = token
 
     user_info = {
         "username": username,
         "full_name": full_name,
         "email": email,
-        "dp": session['dp']
+        "dp": session['dp'],
+        "session_token": token
     }
 
     return api_response(
         True, "Registration successful!",
-        {"user": user_info, "redirect": "/chat"}
+        {"user": user_info, "token": token, "redirect": "/chat"}
     ), 200
 
 
@@ -289,15 +316,18 @@ def handle_login_logic(data):
 
     if user:
         if check_password_hash(user['password_hash'], password):
+            token = update_session_token(user['username'])
             session['logged_in'] = True
             session['username'] = user['username']
             session['full_name'] = user['full_name']
             session['dp'] = f"/static/uploads/{user['profile_photo']}"
+            session['session_token'] = token
 
             user_info = format_user_data(user)
+            user_info['session_token'] = token
             return api_response(
                 True, "Welcome back! Login successful.",
-                {"user": user_info, "redirect": "/chat"}
+                {"user": user_info, "token": token, "redirect": "/chat"}
             ), 200
         else:
             return api_response(
@@ -323,18 +353,26 @@ def default_route():
 
 @app.route('/api/auth/me', methods=['GET'])
 def api_auth_me():
-    if session.get('logged_in') and session.get('username'):
-        username = session.get('username')
-        try:
-            user = login_user(username)
-            if user:
-                return api_response(True, "Authenticated", {
-                    "user": format_user_data(user),
-                    "active_room_id": session.get('room_id')
-                })
-        except Exception as e:
-            return handle_db_error(e, "AUTH ME")
-    return api_response(False, "Not authenticated"), 401
+    user, err_resp, code = verify_auth()
+    if err_resp:
+        return err_resp, code
+    return api_response(True, "Authenticated", {
+        "user": format_user_data(user),
+        "active_room_id": session.get('room_id')
+    })
+
+
+@app.route('/api/auth/refresh_token', methods=['POST', 'GET'])
+def api_auth_refresh_token():
+    user, err_resp, code = verify_auth()
+    if err_resp:
+        return err_resp, code
+    new_token = update_session_token(user['username'])
+    session['session_token'] = new_token
+    return api_response(True, "Session token refreshed", {
+        "token": new_token,
+        "user": format_user_data(user)
+    })
 
 
 @app.route('/api/auth/register', methods=['POST'])
@@ -377,12 +415,20 @@ def login_page():
 
 @app.route('/api/auth/logout', methods=['POST', 'GET'])
 def api_auth_logout():
+    username = session.get('username')
+    if username:
+        update_session_token(username)
+        socketio.emit("force_logout", {"username": username})
     session.clear()
-    return api_response(True, "Logged out successfully")
+    return api_response(True, "Logged out successfully from all devices")
 
 
 @app.route('/logout')
 def logout_page():
+    username = session.get('username')
+    if username:
+        update_session_token(username)
+        socketio.emit("force_logout", {"username": username})
     session.clear()
     return redirect(url_for('login_page'))
 

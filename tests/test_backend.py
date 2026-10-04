@@ -411,3 +411,62 @@ def test_room_permission_boundaries(client):
     del_resp = client.delete(f'/api/rooms/{room_id}')
     assert del_resp.status_code == 403
 
+def test_multi_device_session_invalidation_on_logout(client):
+    u = f"multidev_{str(uuid.uuid4())[:6]}"
+    password = "password123"
+
+    c1 = flask_app.test_client()
+    c2 = flask_app.test_client()
+
+    # Device 1 registers & logs in
+    c1.post('/api/auth/register', json={
+        'full_name': 'Multi Device User',
+        'email': f"{u}@example.com",
+        'username': u,
+        'password': password,
+        'confirm_password': password
+    })
+
+    # Device 1 auth check (should succeed)
+    me1 = c1.get('/api/auth/me')
+    assert me1.status_code == 200
+
+    # Device 2 logs in
+    login_resp2 = c2.post('/api/auth/login', json={'username': u, 'password': password})
+    assert login_resp2.status_code == 200
+
+    # Device 2 auth check (should succeed)
+    me2 = c2.get('/api/auth/me')
+    assert me2.status_code == 200
+
+    # Device 1 auth check NOW (should fail with 401 because token was refreshed by Device 2 login)
+    me1_stale = c1.get('/api/auth/me')
+    assert me1_stale.status_code == 401
+
+    # Device 2 logs out
+    logout_resp = c2.post('/api/auth/logout')
+    assert logout_resp.status_code == 200
+
+    # Device 2 auth check after logout (should fail with 401)
+    me2_after_logout = c2.get('/api/auth/me')
+    assert me2_after_logout.status_code == 401
+
+def test_refresh_token_endpoint(client):
+    u = f"reftok_{str(uuid.uuid4())[:6]}"
+    password = "password123"
+
+    client.post('/api/auth/register', json={
+        'full_name': 'Refresh User',
+        'email': f"{u}@example.com",
+        'username': u,
+        'password': password,
+        'confirm_password': password
+    })
+
+    ref_resp = client.post('/api/auth/refresh_token')
+    assert ref_resp.status_code == 200
+    ref_data = ref_resp.get_json()
+    assert ref_data['status'] is True
+    assert 'token' in ref_data['data']
+
+
